@@ -76,10 +76,9 @@ class LogbookServiceProvider extends ServiceProvider
                 ->routes(function ($router) {
                     $router->get('/system', [LogbookUtilityController::class, 'system'])->name('system');
                     $router->get('/audit',  [LogbookUtilityController::class, 'audit'])->name('audit');
+                    $router->get('/system/export.csv', [LogbookUtilityController::class, 'exportSystemCsv'])->name('system.export');
+                    $router->get('/audit/export.csv',  [LogbookUtilityController::class, 'exportAuditCsv'])->name('audit.export');
 
-                    // Stage 5D لاحقًا:
-                    // $router->get('/system/export.csv', ...)->name('system.export');
-                    // $router->get('/audit/export.csv', ...)->name('audit.export');
                 });
         });
     }
