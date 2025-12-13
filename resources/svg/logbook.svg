@@ -1,4 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-  <path d="M6 2a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h11a1 1 0 0 0 1-1V5.414a1 1 0 0 0-.293-.707l-2.414-2.414A1 1 0 0 0 14.586 2H6zm8 1.414L16.586 6H14V3.414zM7 9h8v2H7V9zm0 4h8v2H7v-2zm0 4h5v2H7v-2z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <g transform="scale(0.09375)">
+    <!-- Background -->
+    <rect x="0" y="0" width="256" height="256" rx="48" fill="#2563EB"/>
+
+    <!-- Binding rings -->
+    <rect x="32" y="56" width="20" height="28" rx="10" fill="#0F172A"/>
+    <rect x="32" y="114" width="20" height="28" rx="10" fill="#0F172A"/>
+    <rect x="32" y="172" width="20" height="28" rx="10" fill="#0F172A"/>
+
+    <!-- Checkmark -->
+    <path
+      d="M96 136l28 28 56-64"
+      fill="none"
+      stroke="#FFFFFF"
+      stroke-width="18"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </g>
 </svg>
 
