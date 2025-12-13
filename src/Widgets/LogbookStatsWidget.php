@@ -8,8 +8,9 @@ use EmranAlhaddad\StatamicLogbook\Support\DbConnectionResolver;
 
 class LogbookStatsWidget extends Widget
 {
-    protected static $title = 'Logbook Overview';
     protected static $handle = 'logbook_stats';
+    protected static $title  = 'Logbook Overview';
+
 
     public function canSee()
     {

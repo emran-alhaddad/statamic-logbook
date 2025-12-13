@@ -2,33 +2,52 @@
 
 namespace EmranAlhaddad\StatamicLogbook;
 
-use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Router;
-
 use Statamic\Facades\Utility;
 use Statamic\Facades\Permission;
+use Statamic\Providers\AddonServiceProvider;
 
 use EmranAlhaddad\StatamicLogbook\Console\InstallCommand;
+use EmranAlhaddad\StatamicLogbook\Console\PruneCommand;
 use EmranAlhaddad\StatamicLogbook\Http\Controllers\LogbookUtilityController;
 use EmranAlhaddad\StatamicLogbook\Http\Middleware\LogbookRequestContext;
+
 use EmranAlhaddad\StatamicLogbook\Audit\AuditRecorder;
 use EmranAlhaddad\StatamicLogbook\Audit\ChangeDetector;
 use EmranAlhaddad\StatamicLogbook\Audit\StatamicAuditSubscriber;
-use EmranAlhaddad\StatamicLogbook\Console\PruneCommand;
-use Statamic\Facades\Widget;
+
 use EmranAlhaddad\StatamicLogbook\Widgets\LogbookStatsWidget;
 
-class LogbookServiceProvider extends ServiceProvider
+class LogbookServiceProvider extends AddonServiceProvider
 {
+    /**
+     * Register Statamic dashboard widgets (works across Statamic versions).
+     */
+    protected $widgets = [
+        LogbookStatsWidget::class,
+    ];
+
     public function register(): void
     {
+        parent::register();
+
+        // Package config
         $this->mergeConfigFrom(__DIR__ . '/../config/logbook.php', 'logbook');
 
+        // NOTE:
+        // Do NOT merge into statamic.cp here. Some Statamic versions have different merging expectations,
+        // and we already register our widget via $widgets.
+        // If you still want auto-add widgets, do it manually in the project config/statamic/cp.php.
+
+        // Singletons
         $this->app->singleton(AuditRecorder::class);
         $this->app->singleton(ChangeDetector::class);
     }
 
-    public function boot(): void
+    /**
+     * Statamic add-on boot hook.
+     */
+    public function bootAddon(): void
     {
         // Views
         $this->loadViewsFrom(__DIR__ . '/../resources/views', 'statamic-logbook');
@@ -46,10 +65,10 @@ class LogbookServiceProvider extends ServiceProvider
             ]);
         }
 
-        // CP middleware (system logs context from CP requests)
+        // CP middleware (CP-only request context)
         $this->registerCpMiddleware();
 
-        // Audit subscriber (Statamic events -> audit table)
+        // Audit subscriber
         if (config('logbook.audit_logs.enabled', true) && class_exists(\Statamic\Statamic::class)) {
             $subscriber = new StatamicAuditSubscriber(
                 recorder: $this->app->make(AuditRecorder::class),
@@ -62,10 +81,8 @@ class LogbookServiceProvider extends ServiceProvider
         // Permissions
         $this->registerPermissions();
 
-        // CP Utility (Logbook pages in CP)
+        // CP Utility pages
         $this->bootCpUtility();
-
-        Widget::register(LogbookStatsWidget::class);
     }
 
     protected function registerPermissions(): void
@@ -79,7 +96,7 @@ class LogbookServiceProvider extends ServiceProvider
 
     protected function registerCpMiddleware(): void
     {
-        if (! class_exists(LogbookRequestContext::class)) {
+        if (!class_exists(LogbookRequestContext::class)) {
             return;
         }
 
@@ -119,12 +136,11 @@ class LogbookServiceProvider extends ServiceProvider
         });
     }
 
-
     protected function svgIcon(string $name): string
     {
         $path = __DIR__ . '/../resources/svg/' . $name . '.svg';
 
-        if (! file_exists($path)) {
+        if (!file_exists($path)) {
             return '';
         }
 
