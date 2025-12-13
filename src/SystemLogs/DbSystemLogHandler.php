@@ -24,7 +24,7 @@ class DbSystemLogHandler extends AbstractProcessingHandler
 
         $request = function_exists('request') ? request() : null;
         $userId = function_exists('auth') ? optional(auth()->user())->id : null;
-
+        $userId = $userId ? (string) $userId : null;
         $ip = null;
         $method = null;
         $url = null;
