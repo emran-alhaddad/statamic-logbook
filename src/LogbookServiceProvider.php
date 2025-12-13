@@ -21,7 +21,7 @@ class LogbookServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->loadViewsFrom(__DIR__ . '/../resources/views', 'statamic-logbook');
-        
+
         $this->publishes([
             __DIR__ . '/../config/logbook.php' => config_path('logbook.php'),
         ], 'logbook-config');
@@ -71,7 +71,7 @@ class LogbookServiceProvider extends ServiceProvider
                 ->title('Logbook')
                 ->navTitle('Logbook')
                 ->description('System logs + user audit logs in one place.')
-                ->icon('file-content') // built-in icon name (safe + simple)
+                ->icon('logbook') // built-in icon name (safe + simple)
                 ->action(LogbookUtilityController::class) // __invoke
                 ->routes(function ($router) {
                     $router->get('/system', [LogbookUtilityController::class, 'system'])->name('system');
