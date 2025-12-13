@@ -18,12 +18,7 @@ return [
         ],
     ],
 
-    'system_logs' => [
-        'enabled' => env('LOGBOOK_SYSTEM_ENABLED', true),
-    ],
-
     'audit_logs' => [
-        'enabled' => env('LOGBOOK_AUDIT_ENABLED', true),
 
         // ✅ Allow-list: only these events get recorded.
         // You can delete/keep what you want.
