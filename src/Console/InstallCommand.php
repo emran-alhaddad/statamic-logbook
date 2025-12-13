@@ -111,7 +111,7 @@ class InstallCommand extends Command
             $table->string('channel', 50)->nullable()->index();
             $table->string('request_id', 64)->nullable()->index();
 
-            $table->unsignedBigInteger('user_id')->nullable()->index();
+            $table->string('user_id', 36)->nullable()->index();
 
             $table->string('ip', 45)->nullable();
             $table->string('method', 10)->nullable();
@@ -138,7 +138,7 @@ class InstallCommand extends Command
 
             $table->string('action', 100)->index();
 
-            $table->unsignedBigInteger('user_id')->nullable()->index();
+            $table->string('user_id', 36)->nullable()->index();
             $table->string('user_email', 191)->nullable()->index();
 
             $table->string('subject_type', 50)->index();
