@@ -48,9 +48,50 @@ class LogbookUtilityController
 
     public function audit(Request $request)
     {
-        // Stage 5C: هنا بنجيب records + filters + pagination
+        $conn = DbConnectionResolver::resolve();
+
+        $q = DB::connection($conn)->table('logbook_audit_logs');
+
+        if ($from = $request->get('from')) {
+            $q->whereDate('created_at', '>=', $from);
+        }
+
+        if ($to = $request->get('to')) {
+            $q->whereDate('created_at', '<=', $to);
+        }
+
+        if ($action = $request->get('action')) {
+            $q->where('action', $action);
+        }
+
+        if ($subject = $request->get('subject_type')) {
+            $q->where('subject_type', $subject);
+        }
+
+        if ($user = $request->get('user_id')) {
+            $q->where('user_id', $user);
+        }
+
+        if ($search = trim((string) $request->get('q'))) {
+            $q->where(function ($qq) use ($search) {
+                $qq->where('subject_title', 'like', "%{$search}%")
+                    ->orWhere('subject_handle', 'like', "%{$search}%");
+            });
+        }
+
+        $logs = $q->orderByDesc('id')->paginate(50)->withQueryString();
+
+        $actions = DB::connection($conn)->table('logbook_audit_logs')
+            ->select('action')->distinct()->orderBy('action')->pluck('action')->all();
+
+        $subjects = DB::connection($conn)->table('logbook_audit_logs')
+            ->select('subject_type')->distinct()->orderBy('subject_type')->pluck('subject_type')->all();
+
         return view('statamic-logbook::cp.logbook.audit', [
             'filters' => $request->all(),
+            'logs' => $logs,
+            'actions' => $actions,
+            'subjects' => $subjects,
         ]);
     }
 }
