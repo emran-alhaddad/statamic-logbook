@@ -3,6 +3,8 @@
 namespace EmranAlhaddad\StatamicLogbook;
 
 use Illuminate\Support\ServiceProvider;
+use EmranAlhaddad\StatamicLogbook\Console\InstallCommand;
+
 
 class LogbookServiceProvider extends ServiceProvider
 {
@@ -16,5 +18,11 @@ class LogbookServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__ . '/../config/logbook.php' => config_path('logbook.php'),
         ], 'logbook-config');
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                InstallCommand::class,
+            ]);
+        }
     }
 }
