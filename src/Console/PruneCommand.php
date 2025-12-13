@@ -16,7 +16,9 @@ class PruneCommand extends Command
         $conn = DbConnectionResolver::resolve();
 
         $days = $this->option('days');
-        $days = is_numeric($days) ? (int) $days : (int) config('logbook.retention.days', 365);
+        $days = is_numeric($days)
+            ? (int) $days
+            : (int) config('logbook.retention_days', 365);
 
         if ($days <= 0) {
             $this->error('Days must be a positive integer.');
