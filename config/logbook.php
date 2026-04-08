@@ -91,6 +91,7 @@ return [
 
         // Block-list: events you do NOT want to audit.
         'exclude_events' => array_values(array_unique(array_merge([
+            // Keep excluded (high-noise / low-audit value):
             \Statamic\Events\AssetContainerBlueprintFound::class,
             \Statamic\Events\EntryBlueprintFound::class,
             \Statamic\Events\FormBlueprintFound::class,
@@ -104,8 +105,9 @@ return [
             \Statamic\Events\StacheCleared::class,
             \Statamic\Events\StacheWarmed::class,
             \Statamic\Events\StaticCacheCleared::class,
-            \Statamic\Events\SearchIndexUpdated::class,
-            \Statamic\Events\UrlInvalidated::class,
+            // Optional exclusions (commented so they stay audited unless you want less noise):
+            // \Statamic\Events\SearchIndexUpdated::class,
+            // \Statamic\Events\UrlInvalidated::class,
         ], array_filter(array_map('trim', explode(',', env(
             'LOGBOOK_AUDIT_EXCLUDE_EVENTS',
             ''

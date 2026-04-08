@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+---
+
+## [1.1.0] – 2026-04-08
+
 ### Added
 
 * Automatic system log capture without manual `logging.php` wiring
