@@ -1,65 +1,64 @@
 Statamic Logbook
 
-A production-ready **logging and audit trail addon** for Statamic.
+A production-ready logging and audit trail addon for Statamic.
 
-**Statamic Logbook** provides a centralized place to review:
+Statamic Logbook provides a centralized place to review:
 
-- 📘 **System logs** (Laravel / Monolog)
-- 📝 **User audit logs** (who changed what, and when)
+- System logs (Laravel / Monolog)
+- User audit logs (who changed what, and when)
 
-All directly inside the **Statamic Control Panel**, with filtering, analytics, and CSV export.
+All inside the Statamic Control Panel, with filtering, analytics, and CSV export.
 
 ---
 
-## ✨ Features
+## Features
 
-### System Logs
+### System logs
 
-- Stores application logs directly in the database
-- Captures request context (URL, method, IP, user)
-- Filter by date, level, and message
-- CSV export
-- Works automatically after install (no `logging.php` wiring required)
+- Captures Laravel log events automatically (no manual `logging.php` wiring required)
+- Stores structured records in Logbook DB tables
+- Captures request context (URL, method, IP, user, request id)
+- Supports noise filtering by channel/message fragment
 
-### Audit Logs
+### Audit logs
 
-- Tracks user actions across Statamic
-- Records **what changed → from → to**
-- Supports entries, taxonomies, globals, navs, and nav trees
-- Field-level ignore rules
-- Safe truncation for large values
-- CSV export
+- Captures high-signal Statamic mutation events by default
+- Stores action, subject metadata, and entry-level before/after diffs
+- Supports field-level ignore rules and value truncation
+- Supports optional broader event discovery mode
 
 ### Control Panel
 
-- Native Statamic CP UI
-- Fast filtering & pagination
-- Modal previews for context & changes
-- Dashboard widgets for overview, trends, and live pulse
-- Uses Statamic CP classes directly (no frontend build pipeline)
+- Native Statamic CP styling/components
+- Dashboard widgets (overview, trends, live pulse)
+- Utility views with filtering and CSV export
 
 ---
 
-## 📦 Installation
+## Compatibility
+
+| Component | Supported |
+| --------- | --------- |
+| Statamic  | v4, v5, v6 |
+| Laravel   | 10, 11 |
+| PHP       | 8.1+ |
+
+---
+
+## Installation
 
 ```bash
 composer require emran-alhaddad/statamic-logbook
-```
-
-Publish the configuration file:
-
-```bash
 php artisan vendor:publish --tag=logbook-config
 ```
 
 ---
 
-## 🗄 Database Configuration (Required)
+## Setup (Required)
 
-Statamic Logbook **requires** a database connection defined via `.env`.
-If these variables are missing, the addon **will not function**.
+### 1) Configure Logbook database credentials in `.env`
 
-Add the following to your `.env` file:
+These are required for Logbook to work:
 
 ```env
 LOGBOOK_DB_CONNECTION=mysql
@@ -70,61 +69,23 @@ LOGBOOK_DB_USERNAME=logbook_user
 LOGBOOK_DB_PASSWORD=secret
 ```
 
-### ✅ What to do
+Then clear config cache:
 
-- Create a dedicated database (example: `logbook_database`)
-- Create a database user with full access to that database
-- Add the variables above to `.env`
-- Clear configuration cache:
+```bash
+php artisan config:clear
+```
 
-  ```bash
-  php artisan config:clear
-  ```
-
-### ❌ What NOT to do
-
-- ❌ Do not use dots (`.`) in database names — use underscores (`_`)
-- ❌ Do not reuse credentials from unrelated systems
-- ❌ Do not point Logbook to a database you do not fully control
-- ❌ Do not commit real credentials to version control
-
----
-
-## 🏗 Install Database Tables
-
-Once database variables are set, run:
+### 2) Install database tables
 
 ```bash
 php artisan logbook:install
 ```
 
-This command creates all required tables.
-
 ---
 
-## ⚙️ Configuration
+## Environment Variables
 
-All configuration options live in:
-
-```txt
-config/logbook.php
-```
-
-Environment variables are used only for sensitive or environment-specific values.
-
-## 🏷 Version & Tags
-
-Current known tags:
-
-- `v1.2.0`
-- `v1.1.0`
-- `v1.0.0`
-
-Recent post-`v1.2.0` work is currently documented under `CHANGELOG.md` in `Unreleased`.
-
-## 🧩 Complete `.env` Reference (all `LOGBOOK_*` vars)
-
-Use this block as a complete starter template:
+All variables used by the addon:
 
 ```env
 # Required DB connection
@@ -140,14 +101,14 @@ LOGBOOK_DB_SOCKET=
 LOGBOOK_DB_CHARSET=utf8mb4
 LOGBOOK_DB_COLLATION=utf8mb4_unicode_ci
 
-# System log capture
+# System logging
 LOGBOOK_SYSTEM_LOGS_ENABLED=true
 LOGBOOK_SYSTEM_LOGS_LEVEL=debug
 LOGBOOK_SYSTEM_LOGS_BUBBLE=true
 LOGBOOK_SYSTEM_LOGS_IGNORE_CHANNELS=deprecations
 LOGBOOK_SYSTEM_LOGS_IGNORE_MESSAGES=Since symfony/http-foundation,Unable to create configured logger. Using emergency logger.
 
-# Audit behavior
+# Audit logging
 LOGBOOK_AUDIT_DISCOVER_EVENTS=false
 LOGBOOK_AUDIT_EXCLUDE_EVENTS=
 LOGBOOK_AUDIT_IGNORE_FIELDS=updated_at,created_at,date,uri,slug
@@ -156,18 +117,28 @@ LOGBOOK_AUDIT_MAX_VALUE_LENGTH=2000
 # Retention
 LOGBOOK_RETENTION_DAYS=365
 
-# Ingestion mode (no external queue required)
+# Ingestion mode
 LOGBOOK_INGEST_MODE=sync
 LOGBOOK_SPOOL_PATH=storage/app/logbook/spool
 LOGBOOK_SPOOL_MAX_MB=256
 LOGBOOK_SPOOL_BACKPRESSURE=drop_oldest
 ```
 
-### Variable-by-variable explanation
+### Short `.env` example (minimal working setup)
 
-### Required vs optional env vars
+```env
+LOGBOOK_DB_CONNECTION=mysql
+LOGBOOK_DB_HOST=127.0.0.1
+LOGBOOK_DB_PORT=3306
+LOGBOOK_DB_DATABASE=logbook_database
+LOGBOOK_DB_USERNAME=logbook_user
+LOGBOOK_DB_PASSWORD=secret
 
-Required for production operation:
+LOGBOOK_INGEST_MODE=spool
+LOGBOOK_SPOOL_PATH=storage/app/logbook/spool
+```
+
+### Required variables
 
 - `LOGBOOK_DB_CONNECTION`
 - `LOGBOOK_DB_HOST`
@@ -176,193 +147,67 @@ Required for production operation:
 - `LOGBOOK_DB_USERNAME`
 - `LOGBOOK_DB_PASSWORD`
 
-Optional (with safe defaults):
+### Optional variables and behavior
 
-- `LOGBOOK_DB_SOCKET`
-- `LOGBOOK_DB_CHARSET`
-- `LOGBOOK_DB_COLLATION`
-- `LOGBOOK_SYSTEM_LOGS_ENABLED`
-- `LOGBOOK_SYSTEM_LOGS_LEVEL`
-- `LOGBOOK_SYSTEM_LOGS_BUBBLE`
-- `LOGBOOK_SYSTEM_LOGS_IGNORE_CHANNELS`
-- `LOGBOOK_SYSTEM_LOGS_IGNORE_MESSAGES`
-- `LOGBOOK_AUDIT_DISCOVER_EVENTS`
-- `LOGBOOK_AUDIT_EXCLUDE_EVENTS`
-- `LOGBOOK_AUDIT_IGNORE_FIELDS`
-- `LOGBOOK_AUDIT_MAX_VALUE_LENGTH`
-- `LOGBOOK_RETENTION_DAYS`
-- `LOGBOOK_INGEST_MODE`
-- `LOGBOOK_SPOOL_PATH`
-- `LOGBOOK_SPOOL_MAX_MB`
-- `LOGBOOK_SPOOL_BACKPRESSURE`
-
-#### Database (required for addon to work)
-
-- `LOGBOOK_DB_CONNECTION`: DB driver (`mysql`, `pgsql`, ...). Required.
-- `LOGBOOK_DB_HOST`: DB host. Required unless using socket-only setup.
-- `LOGBOOK_DB_PORT`: DB port. Default `3306`.
-- `LOGBOOK_DB_DATABASE`: Database name used by Logbook. Required.
-- `LOGBOOK_DB_USERNAME`: DB username. Required.
-- `LOGBOOK_DB_PASSWORD`: DB password. Required.
-- `LOGBOOK_DB_SOCKET`: Unix socket path (optional). Keep empty for host/port mode.
-- `LOGBOOK_DB_CHARSET`: Connection charset. Default `utf8mb4`.
-- `LOGBOOK_DB_COLLATION`: Connection collation. Default `utf8mb4_unicode_ci`.
-
-#### System logging
-
-- `LOGBOOK_SYSTEM_LOGS_ENABLED`: Enable/disable automatic Laravel log capture. Default `true`.
-- `LOGBOOK_SYSTEM_LOGS_LEVEL`: Minimum captured level (`debug`, `info`, `warning`, `error`, ...). Default `debug`.
-- `LOGBOOK_SYSTEM_LOGS_BUBBLE`: Monolog bubble flag for handler interoperability. Default `true`.
-- `LOGBOOK_SYSTEM_LOGS_IGNORE_CHANNELS`: Comma-separated channels to skip. Default includes `deprecations`.
-- `LOGBOOK_SYSTEM_LOGS_IGNORE_MESSAGES`: Comma-separated message fragments to skip (noise guardrails).
-
-#### Audit logging
-
-- `LOGBOOK_AUDIT_EXCLUDE_EVENTS`: Comma-separated full Statamic event class names to exclude from auditing.
-- `LOGBOOK_AUDIT_DISCOVER_EVENTS`: When `true`, merge discovered Statamic events with curated defaults (can increase noise). Default `false`.
-- `LOGBOOK_AUDIT_IGNORE_FIELDS`: Comma-separated fields ignored in before/after diffs.
-- `LOGBOOK_AUDIT_MAX_VALUE_LENGTH`: Max stored value length before truncation. Default `2000`.
-
-#### Retention
-
-- `LOGBOOK_RETENTION_DAYS`: Days to keep logs before prune. Default `365`.
-
-#### Ingestion mode
-
-- `LOGBOOK_INGEST_MODE`: `sync` (default) writes directly to DB, `spool` writes local NDJSON then flushes in batches.
-- `LOGBOOK_SPOOL_PATH`: Local spool directory path. Default `storage/app/logbook/spool`.
-- `LOGBOOK_SPOOL_MAX_MB`: Max combined spool size before backpressure policy applies. Default `256`.
-- `LOGBOOK_SPOOL_BACKPRESSURE`: Current supported mode `drop_oldest`.
-
-### Hidden gotchas and important clarifications
-
-- Logbook reads values from `config/logbook.php`; after changing `.env`, run `php artisan config:clear`.
-- Curated audit defaults are used by default; noisy blueprint/cache lifecycle events are excluded.
-- `LOGBOOK_AUDIT_EXCLUDE_EVENTS` extends built-in exclusions; it does not replace defaults.
-- `LOGBOOK_AUDIT_DISCOVER_EVENTS=true` can introduce broad/noisy event capture and should be enabled only when needed.
-- `LOGBOOK_SYSTEM_LOGS_IGNORE_MESSAGES` splits by comma, so keep each fragment comma-delimited.
-- Empty values in comma-based variables are automatically removed by config parsing.
-- Privacy masking keys (`password`, `token`, `secret`, ...) are configured in `config/logbook.php` under `privacy.mask_keys` (not via `.env`).
-
-### System Log Capture Controls
-
-```env
-LOGBOOK_SYSTEM_LOGS_ENABLED=true
-LOGBOOK_SYSTEM_LOGS_LEVEL=debug
-LOGBOOK_SYSTEM_LOGS_BUBBLE=true
-LOGBOOK_SYSTEM_LOGS_IGNORE_CHANNELS=deprecations
-LOGBOOK_SYSTEM_LOGS_IGNORE_MESSAGES=Since symfony/http-foundation,Unable to create configured logger. Using emergency logger.
-```
-
-- `LOGBOOK_SYSTEM_LOGS_ENABLED`: enable/disable automatic system log capture
-- `LOGBOOK_SYSTEM_LOGS_LEVEL`: minimum level captured (`debug`, `info`, `warning`, `error`, ...)
-- `LOGBOOK_SYSTEM_LOGS_BUBBLE`: Monolog bubble behavior for handler compatibility
-- `LOGBOOK_SYSTEM_LOGS_IGNORE_CHANNELS`: comma-separated channels to ignore
-- `LOGBOOK_SYSTEM_LOGS_IGNORE_MESSAGES`: comma-separated message fragments to ignore
-
-## 🧠 Audit Configuration
-
-### Exclude noisy events (default uses curated high-signal events)
-
-```env
-LOGBOOK_AUDIT_EXCLUDE_EVENTS="Statamic\\Events\\ResponseCreated,Statamic\\Events\\SearchIndexUpdated"
-```
-
-Use `audit_logs.exclude_events` in `config/logbook.php` to block specific event classes. Keep discovery off unless you explicitly need wider coverage.
-
-### Ignore noisy or irrelevant fields
-
-```env
-LOGBOOK_AUDIT_IGNORE_FIELDS=updated_at,created_at,slug,uri
-```
-
-### Limit stored value size
-
-```env
-LOGBOOK_AUDIT_MAX_VALUE_LENGTH=2000
-```
-
-Large values are automatically truncated to protect performance and storage.
+- `LOGBOOK_DB_SOCKET`: unix socket path.
+- `LOGBOOK_DB_CHARSET`: DB charset (default `utf8mb4`).
+- `LOGBOOK_DB_COLLATION`: DB collation (default `utf8mb4_unicode_ci`).
+- `LOGBOOK_SYSTEM_LOGS_ENABLED`: enable/disable system log capture (default `true`).
+- `LOGBOOK_SYSTEM_LOGS_LEVEL`: minimum system level (default `debug`).
+- `LOGBOOK_SYSTEM_LOGS_BUBBLE`: Monolog bubble behavior (default `true`).
+- `LOGBOOK_SYSTEM_LOGS_IGNORE_CHANNELS`: comma-separated ignored channels.
+- `LOGBOOK_SYSTEM_LOGS_IGNORE_MESSAGES`: comma-separated ignored message fragments.
+- `LOGBOOK_AUDIT_DISCOVER_EVENTS`: when `true`, merges discovered Statamic events with curated defaults.
+- `LOGBOOK_AUDIT_EXCLUDE_EVENTS`: comma-separated audit event classes to exclude.
+- `LOGBOOK_AUDIT_IGNORE_FIELDS`: comma-separated fields ignored in diffs.
+- `LOGBOOK_AUDIT_MAX_VALUE_LENGTH`: max stored value length before truncation.
+- `LOGBOOK_RETENTION_DAYS`: retention period for prune command.
+- `LOGBOOK_INGEST_MODE`: `sync` (direct DB) or `spool` (local file spool + background flush).
+- `LOGBOOK_SPOOL_PATH`: spool directory path.
+- `LOGBOOK_SPOOL_MAX_MB`: max spool size before backpressure policy applies.
+- `LOGBOOK_SPOOL_BACKPRESSURE`: currently supports `drop_oldest`.
 
 ---
 
-## ✅ Quick Verification
+## Ingestion Modes
 
-After installation:
+### `sync` mode
 
-1. Run `php artisan logbook:install`
-2. Trigger a log, for example in Tinker:
-   ```php
-   \Log::info('logbook system test', ['source' => 'manual-check']);
-   ```
-3. Open Logbook in CP and confirm the row appears under **System Logs**
-4. Add the Logbook widgets to your dashboard and verify:
-   - **Overview** shows 24h system/error/audit totals
-   - **Volume by day** renders stacked bars
-   - **Live feed** filters correctly using All / Errors / System / Audit
+- Writes system/audit rows directly to DB in request lifecycle.
+
+### `spool` mode
+
+- Writes NDJSON records to local spool files in request lifecycle.
+- Flushes spool files to DB in background via command/scheduler.
+- If enqueue fails, Logbook falls back to direct DB insert (prevents silent drops).
 
 ---
 
-## 🗑 Log Retention
+## Spool Flush and Background Scheduling
 
-Automatically prune old logs after a given number of days:
-
-```env
-LOGBOOK_RETENTION_DAYS=365
-```
-
-Run manually:
-
-```bash
-php artisan logbook:prune
-```
-
-You may also schedule this command via cron.
-
-## 🚚 Spool Flush (optional, for `LOGBOOK_INGEST_MODE=spool`)
-
-When using spool mode, request-time logging writes to local spool files and a scheduled command flushes records to DB:
+Flush command:
 
 ```bash
 php artisan logbook:flush-spool
 ```
 
-Useful options:
+Common usage:
 
 ```bash
 php artisan logbook:flush-spool --type=all --limit=1000
 php artisan logbook:flush-spool --type=system --dry-run
 ```
 
-The command output includes operational health indicators before/after each run:
-- queued file count
-- queued backlog size (bytes)
-- failed-file count (dead-letter backlog)
+Command output includes:
 
-Recommended scheduler example:
+- queued files (before/after)
+- queued bytes (before/after)
+- failed files (before/after)
+- failure reason and failed-file destination when flush fails
 
-```php
-$schedule->command('logbook:flush-spool --type=all --limit=1000')->everyFiveMinutes();
-```
+### Laravel scheduler entry (app code)
 
-### How spool mode works (end-to-end)
-
-1. Request lifecycle captures system/audit events as usual.
-2. In `spool` mode, Logbook writes NDJSON records to local spool files.
-3. Scheduler runs `logbook:flush-spool` in the background.
-4. Command reads spool files in batches and inserts rows to DB.
-5. On success, spool segment is removed.
-6. On failure, segment is moved to `storage/app/logbook/spool/failed/...` and error is printed.
-
-### OS cron setup (required for background execution)
-
-Laravel scheduler needs one cron entry on the host:
-
-```bash
-* * * * * cd /absolute/path/to/your-laravel-app && php artisan schedule:run >> /dev/null 2>&1
-```
-
-Then register the Logbook flush in your app scheduler:
+Add to your app scheduler (`routes/console.php` or `Console\Kernel`):
 
 ```php
 use Illuminate\Support\Facades\Schedule;
@@ -372,73 +217,106 @@ Schedule::command('logbook:flush-spool --type=all --limit=1000')
     ->withoutOverlapping();
 ```
 
-### Troubleshooting spool mode
+Short scheduler example:
 
-- If files are not created in spool mode:
+```php
+Schedule::command('logbook:flush-spool')->everyFiveMinutes();
+```
+
+### OS cron (host level, required)
+
+```bash
+* * * * * cd /absolute/path/to/your-laravel-app && php artisan schedule:run >> /dev/null 2>&1
+```
+
+Short cron example:
+
+```bash
+* * * * * php /absolute/path/to/your-laravel-app/artisan schedule:run >> /dev/null 2>&1
+```
+
+---
+
+## Operational Commands
+
+- Install tables: `php artisan logbook:install`
+- Prune old rows: `php artisan logbook:prune`
+- Flush spool: `php artisan logbook:flush-spool`
+
+---
+
+## Quick Verification
+
+1. Set required DB env vars.
+2. Run `php artisan config:clear`.
+3. Run `php artisan logbook:install`.
+4. Trigger a test log:
+   ```php
+   \Log::error('logbook smoke test', ['source' => 'manual-check']);
+   ```
+5. If in spool mode, run `php artisan logbook:flush-spool --type=all`.
+6. Confirm rows appear in CP (System Logs / Audit Logs).
+
+---
+
+## What To Do / What Not To Do
+
+### Do
+
+- Use a dedicated DB/schema for Logbook where possible.
+- Keep scheduler and cron configured if using `spool` mode.
+- Keep `LOGBOOK_AUDIT_DISCOVER_EVENTS=false` unless you need wider coverage.
+- Monitor failed spool files under `storage/app/logbook/spool/failed/`.
+
+### Do not
+
+- Do not commit real credentials.
+- Do not disable scheduler while using `spool` mode.
+- Do not point Logbook to an uncontrolled DB.
+- Do not treat audit logs as editable content.
+
+---
+
+## Troubleshooting
+
+- If spool files are not created:
   - run `php artisan config:clear`
   - verify `LOGBOOK_INGEST_MODE=spool`
-  - verify `LOGBOOK_SPOOL_PATH` is writable by PHP-FPM user.
-- If flush reports failures:
-  - inspect printed `Flush error:` line
-  - inspect files under `storage/app/logbook/spool/failed/`
-  - requeue failed files and run flush again after fix.
+  - verify spool directory write permissions for PHP-FPM user
+- If flush fails:
+  - read printed `Flush error:` message
+  - inspect `storage/app/logbook/spool/failed/...`
+  - fix root cause, requeue failed file, and run flush again
 
 ---
 
-## 🔐 Permissions
+## Release and History
 
-Logbook registers the following permissions:
+Known tags:
 
-- `view logbook` — View system & audit logs
-- `export logbook` — Download CSV exports
+- `v1.3.0` (current)
+- `v1.2.0`
+- `v1.1.0`
+- `v1.0.0`
 
-Assign permissions via the Statamic Control Panel.
+Recent changes after `v1.2.0` are documented under `CHANGELOG.md` -> `Unreleased`.
 
----
+### Current release
 
-## ❌ What NOT to Do
-
-- ❌ Do not log secrets, tokens, or passwords
-- ❌ Do not modify Logbook database tables manually
-- ❌ Do not disable retention without a cleanup strategy
-- ❌ Do not treat audit logs as editable content
-
-Logbook is designed to be **read-only from the Control Panel**.
+- Current release: `v1.3.0`
+- Focus: audit quality hardening, spool-first ingestion option, flush diagnostics, and reliability fixes.
 
 ---
 
-## 🧪 Compatibility
+## License
 
-| Component | Supported  |
-| --------- | ---------- |
-| Statamic  | v4, v5, v6 |
-| Laravel   | 10, 11     |
-| PHP       | 8.1+       |
+MIT License. See `LICENSE`.
 
----
+## Author
 
-## 📄 License
+Built and maintained by Emran Alhaddad  
+GitHub: <https://github.com/emran-alhaddad>
 
-MIT License
-See [`LICENSE`](LICENSE) for details.
+## Changelog
 
----
-
-## 👤 Author
-
-Built and maintained by **Emran Alhaddad**
-GitHub: [https://github.com/emran-alhaddad](https://github.com/emran-alhaddad)
-
----
-
-## 🧾 Changelog
-
-See [`CHANGELOG.md`](CHANGELOG.md) for release history.
-
-## 🚀 Release Notes (latest)
-
-### v1.2.0
-
-- Added three CP dashboard widgets: overview cards, daily trends, and live pulse feed.
-- Moved widget styling to native Statamic CP utility/component classes.
-- Removed dependency on external frontend asset builds for widget UI.
+See `CHANGELOG.md` for release history.
