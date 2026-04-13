@@ -176,7 +176,7 @@ class FlushSpoolCommand extends Command
             'method' => $p['method'] ?? null,
             'url' => $p['url'] ?? null,
             'user_agent' => $p['user_agent'] ?? null,
-            'created_at' => $p['created_at'] ?? now(),
+            'created_at' => $this->normalizeDateTime($p['created_at'] ?? null),
         ];
     }
 
@@ -194,8 +194,24 @@ class FlushSpoolCommand extends Command
             'meta' => $p['meta'] ?? null,
             'ip' => $p['ip'] ?? null,
             'user_agent' => $p['user_agent'] ?? null,
-            'created_at' => $p['created_at'] ?? now(),
+            'created_at' => $this->normalizeDateTime($p['created_at'] ?? null),
         ];
+    }
+
+    private function normalizeDateTime(mixed $value): string
+    {
+        try {
+            if ($value instanceof \DateTimeInterface) {
+                return $value->format('Y-m-d H:i:s');
+            }
+            if (is_string($value) && trim($value) !== '') {
+                return now()->parse($value)->format('Y-m-d H:i:s');
+            }
+        } catch (\Throwable $e) {
+            // Fall through to now() fallback.
+        }
+
+        return now()->format('Y-m-d H:i:s');
     }
 
     private function formatBytes(int $bytes): string
