@@ -7,6 +7,7 @@ use Monolog\Handler\AbstractProcessingHandler;
 use Monolog\LogRecord;
 use Monolog\Level;
 use EmranAlhaddad\StatamicLogbook\Support\DbConnectionResolver;
+use EmranAlhaddad\StatamicLogbook\Support\LogSpool;
 use EmranAlhaddad\StatamicLogbook\Support\Sanitizer;
 
 
@@ -71,8 +72,7 @@ class DbSystemLogHandler extends AbstractProcessingHandler
             }
 
             $ctx = Sanitizer::maskArray(is_array($context) ? $context : []);
-
-            DB::connection($conn)->table('logbook_system_logs')->insert([
+            $row = [
                 'level'      => $level,
                 'message'    => $message,
                 'context'    => !empty($ctx)
@@ -86,6 +86,25 @@ class DbSystemLogHandler extends AbstractProcessingHandler
                 'url'        => $url,
                 'user_agent' => $userAgent ?: null,
                 'created_at' => now(),
+            ];
+
+            if (LogSpool::enabled()) {
+                LogSpool::enqueueSystem($row);
+                return;
+            }
+
+            DB::connection($conn)->table('logbook_system_logs')->insert([
+                'level'      => $row['level'],
+                'message'    => $row['message'],
+                'context'    => $row['context'],
+                'channel'    => $row['channel'],
+                'request_id' => $row['request_id'],
+                'user_id'    => $row['user_id'],
+                'ip'         => $row['ip'],
+                'method'     => $row['method'],
+                'url'        => $row['url'],
+                'user_agent' => $row['user_agent'],
+                'created_at' => $row['created_at'],
             ]);
         } catch (\Throwable $e) {
             // Never break the app because a logging sink failed.

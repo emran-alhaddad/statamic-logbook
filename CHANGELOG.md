@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 * Switched audit defaults to curated high-signal events, with optional discovery via `LOGBOOK_AUDIT_DISCOVER_EVENTS`.
 * Normalized audit action naming for non-entry subjects to operation-oriented actions (`created|updated|deleted|event`).
+* Added optional spool-first ingestion mode (`LOGBOOK_INGEST_MODE=spool`) to avoid request-time remote DB writes.
 
 ### Fixed
 
@@ -23,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Removed
 
 * Removed unused `LogbookLoggerFactory` legacy class.
+
+### Added
+
+* New `logbook:flush-spool` command to batch flush local spool files into DB.
 
 ---
 

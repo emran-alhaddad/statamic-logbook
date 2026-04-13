@@ -145,6 +145,12 @@ LOGBOOK_AUDIT_MAX_VALUE_LENGTH=2000
 
 # Retention
 LOGBOOK_RETENTION_DAYS=365
+
+# Ingestion mode (no external queue required)
+LOGBOOK_INGEST_MODE=sync
+LOGBOOK_SPOOL_PATH=storage/app/logbook/spool
+LOGBOOK_SPOOL_MAX_MB=256
+LOGBOOK_SPOOL_BACKPRESSURE=drop_oldest
 ```
 
 ### Variable-by-variable explanation
@@ -179,6 +185,13 @@ LOGBOOK_RETENTION_DAYS=365
 #### Retention
 
 - `LOGBOOK_RETENTION_DAYS`: Days to keep logs before prune. Default `365`.
+
+#### Ingestion mode
+
+- `LOGBOOK_INGEST_MODE`: `sync` (default) writes directly to DB, `spool` writes local NDJSON then flushes in batches.
+- `LOGBOOK_SPOOL_PATH`: Local spool directory path. Default `storage/app/logbook/spool`.
+- `LOGBOOK_SPOOL_MAX_MB`: Max combined spool size before backpressure policy applies. Default `256`.
+- `LOGBOOK_SPOOL_BACKPRESSURE`: Current supported mode `drop_oldest`.
 
 ### Hidden gotchas and important clarifications
 
@@ -264,6 +277,27 @@ php artisan logbook:prune
 ```
 
 You may also schedule this command via cron.
+
+## 🚚 Spool Flush (optional, for `LOGBOOK_INGEST_MODE=spool`)
+
+When using spool mode, request-time logging writes to local spool files and a scheduled command flushes records to DB:
+
+```bash
+php artisan logbook:flush-spool
+```
+
+Useful options:
+
+```bash
+php artisan logbook:flush-spool --type=all --limit=1000
+php artisan logbook:flush-spool --type=system --dry-run
+```
+
+Recommended scheduler example:
+
+```php
+$schedule->command('logbook:flush-spool --type=all --limit=1000')->everyFiveMinutes();
+```
 
 ---
 

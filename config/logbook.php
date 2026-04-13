@@ -108,6 +108,16 @@ return [
 
     'retention_days' => (int) env('LOGBOOK_RETENTION_DAYS', 365),
 
+    'ingest' => [
+        // sync: direct DB writes during request
+        // spool: local NDJSON spool + scheduled flush command
+        'mode' => env('LOGBOOK_INGEST_MODE', 'sync'),
+        'spool_path' => env('LOGBOOK_SPOOL_PATH', storage_path('app/logbook/spool')),
+        'max_spool_mb' => (int) env('LOGBOOK_SPOOL_MAX_MB', 256),
+        // drop_oldest currently supported
+        'backpressure' => env('LOGBOOK_SPOOL_BACKPRESSURE', 'drop_oldest'),
+    ],
+
     'privacy' => [
         'mask_keys' => [
             'password',

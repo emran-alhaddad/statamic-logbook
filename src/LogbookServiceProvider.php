@@ -13,6 +13,7 @@ use Statamic\Widgets\Widget;
 
 use EmranAlhaddad\StatamicLogbook\Console\InstallCommand;
 use EmranAlhaddad\StatamicLogbook\Console\PruneCommand;
+use EmranAlhaddad\StatamicLogbook\Console\FlushSpoolCommand;
 use EmranAlhaddad\StatamicLogbook\Http\Controllers\LogbookUtilityController;
 use EmranAlhaddad\StatamicLogbook\Http\Middleware\LogbookRequestContext;
 use EmranAlhaddad\StatamicLogbook\Audit\AuditRecorder;
@@ -130,6 +131,7 @@ class LogbookServiceProvider extends AddonServiceProvider
             $this->commands([
                 InstallCommand::class,
                 PruneCommand::class,
+                FlushSpoolCommand::class,
             ]);
         }
 
