@@ -25,11 +25,22 @@ class FlushSpoolCommand extends Command
         $conn = DbConnectionResolver::resolve();
 
         $types = $type === 'all' ? ['system', 'audit'] : [$type];
+        $queuedFilesBefore = 0;
+        $failedFilesBefore = 0;
+        foreach ($types as $t) {
+            $queuedFilesBefore += count(LogSpool::spoolFiles($t));
+            $failedFilesBefore += count(LogSpool::failedFiles($t));
+        }
+        $queuedBytesBefore = LogSpool::spoolBytes();
+
         $this->line('Logbook spool flush');
         $this->line('• Mode: '.LogSpool::mode());
         $this->line('• Type: '.$type);
         $this->line('• Limit per file: '.$limit);
         $this->line('• DB connection: '.$conn);
+        $this->line('• Queued files (before): '.$queuedFilesBefore);
+        $this->line('• Queued bytes (before): '.$this->formatBytes($queuedBytesBefore));
+        $this->line('• Failed files (before): '.$failedFilesBefore);
 
         $totalRead = 0;
         $totalInserted = 0;
@@ -49,7 +60,16 @@ class FlushSpoolCommand extends Command
         $this->info('Done.');
         $this->line('• Read: '.$totalRead);
         $this->line('• Inserted: '.$totalInserted);
-        $this->line('• Failed files: '.$failedFiles);
+        $this->line('• Flush failures this run: '.$failedFiles);
+        $queuedFilesAfter = 0;
+        $failedFilesAfter = 0;
+        foreach ($types as $t) {
+            $queuedFilesAfter += count(LogSpool::spoolFiles($t));
+            $failedFilesAfter += count(LogSpool::failedFiles($t));
+        }
+        $this->line('• Queued files (after): '.$queuedFilesAfter);
+        $this->line('• Queued bytes (after): '.$this->formatBytes(LogSpool::spoolBytes()));
+        $this->line('• Failed files (after): '.$failedFilesAfter);
 
         return $failedFiles > 0 ? self::FAILURE : self::SUCCESS;
     }
@@ -163,5 +183,19 @@ class FlushSpoolCommand extends Command
             'user_agent' => $p['user_agent'] ?? null,
             'created_at' => $p['created_at'] ?? now(),
         ];
+    }
+
+    private function formatBytes(int $bytes): string
+    {
+        if ($bytes < 1024) {
+            return $bytes.' B';
+        }
+        if ($bytes < 1024 * 1024) {
+            return round($bytes / 1024, 2).' KB';
+        }
+        if ($bytes < 1024 * 1024 * 1024) {
+            return round($bytes / (1024 * 1024), 2).' MB';
+        }
+        return round($bytes / (1024 * 1024 * 1024), 2).' GB';
     }
 }

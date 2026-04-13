@@ -293,6 +293,11 @@ php artisan logbook:flush-spool --type=all --limit=1000
 php artisan logbook:flush-spool --type=system --dry-run
 ```
 
+The command output includes operational health indicators before/after each run:
+- queued file count
+- queued backlog size (bytes)
+- failed-file count (dead-letter backlog)
+
 Recommended scheduler example:
 
 ```php

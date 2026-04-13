@@ -149,4 +149,24 @@ class LogSpool
         }
         return $sum;
     }
+
+    public static function failedFiles(string $type): array
+    {
+        $pattern = self::failedDir($type).DIRECTORY_SEPARATOR.'*.failed';
+        $paths = glob($pattern) ?: [];
+        $out = [];
+        foreach ($paths as $path) {
+            if (! is_file($path)) {
+                continue;
+            }
+            $out[] = [
+                'path' => $path,
+                'mtime' => (int) @filemtime($path),
+                'size' => (int) @filesize($path),
+            ];
+        }
+
+        usort($out, fn (array $a, array $b) => $a['mtime'] <=> $b['mtime']);
+        return $out;
+    }
 }
