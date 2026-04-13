@@ -124,6 +124,7 @@ return [
     ],
 
     'retention_days' => (int) env('LOGBOOK_RETENTION_DAYS', 365),
+
     'privacy' => [
         'mask_keys' => [
             'password',

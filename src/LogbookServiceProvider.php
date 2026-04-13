@@ -9,6 +9,7 @@ use Monolog\Level;
 use Statamic\Facades\Utility;
 use Statamic\Facades\Permission;
 use Statamic\Providers\AddonServiceProvider;
+use Statamic\Widgets\Widget;
 
 use EmranAlhaddad\StatamicLogbook\Console\InstallCommand;
 use EmranAlhaddad\StatamicLogbook\Console\PruneCommand;
@@ -18,9 +19,24 @@ use EmranAlhaddad\StatamicLogbook\Audit\AuditRecorder;
 use EmranAlhaddad\StatamicLogbook\Audit\ChangeDetector;
 use EmranAlhaddad\StatamicLogbook\Audit\StatamicAuditSubscriber;
 use EmranAlhaddad\StatamicLogbook\SystemLogs\DbSystemLogHandler;
+use EmranAlhaddad\StatamicLogbook\Widgets\LogbookPulseWidget;
+use EmranAlhaddad\StatamicLogbook\Widgets\LogbookStatsWidget;
+use EmranAlhaddad\StatamicLogbook\Widgets\LogbookTrendsWidget;
 
 class LogbookServiceProvider extends AddonServiceProvider
 {
+    /**
+     * Required for {@see AddonServiceProvider::bootWidgets()} to call
+     * {@see Widget::register()} on each class.
+     *
+     * @var list<class-string<Widget>>
+     */
+    protected $widgets = [
+        LogbookStatsWidget::class,
+        LogbookTrendsWidget::class,
+        LogbookPulseWidget::class,
+    ];
+
     protected static bool $booted = false;
     protected static bool $systemLogsHooked = false;
 
@@ -38,11 +54,63 @@ class LogbookServiceProvider extends AddonServiceProvider
     {
         parent::boot();
         $this->bootLogbook();
+        $this->registerMergedStatamicWidgetsBinding();
     }
 
-    public function bootAddon(): void
+    /**
+     * Statamic's {@see \Statamic\Widgets\Loader} reads `app('statamic.widgets')`, which is
+     * bound to `statamic.extensions[Widget::class]`. Core only registers concrete widget
+     * classes; the abstract map must contain handle → class. Rebind lazily so this runs
+     * after {@see \Statamic\Statamic::runBootedCallbacks()} (when subclasses are registered).
+     */
+    protected function registerMergedStatamicWidgetsBinding(): void
     {
-        $this->bootLogbook();
+        $this->app->bind('statamic.widgets', function ($app) {
+            $abstract = Widget::class;
+
+            if (! $app->bound('statamic.extensions')) {
+                return collect();
+            }
+
+            $extensions = $app['statamic.extensions'];
+            if (! $extensions instanceof \Illuminate\Support\Collection) {
+                return collect();
+            }
+
+            $merged = collect($extensions[$abstract] ?? []);
+
+            foreach ($extensions as $class => $bindings) {
+                if (! is_string($class) || ! class_exists($class)) {
+                    continue;
+                }
+                if ($class === $abstract || ! is_subclass_of($class, $abstract)) {
+                    continue;
+                }
+                if (! $bindings instanceof \Illuminate\Support\Collection) {
+                    continue;
+                }
+                $merged = $merged->merge($bindings);
+            }
+
+            foreach ([
+                LogbookStatsWidget::class,
+                LogbookTrendsWidget::class,
+                LogbookPulseWidget::class,
+            ] as $widgetClass) {
+                if ($merged->has($widgetClass::handle())) {
+                    continue;
+                }
+                $widgetClass::register();
+                $map = $extensions[$widgetClass] ?? null;
+                if ($map instanceof \Illuminate\Support\Collection) {
+                    $merged = $merged->merge($map);
+                } else {
+                    $merged->put($widgetClass::handle(), $widgetClass);
+                }
+            }
+
+            return $merged;
+        });
     }
 
     protected function bootLogbook(): void
