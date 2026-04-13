@@ -75,6 +75,9 @@
 
 <script>
 (function () {
+    if (window.__logbookPulseFilterBound) return;
+    window.__logbookPulseFilterBound = true;
+
     // Pulse widget filters (event delegation; works for dynamically rendered widget HTML)
   document.addEventListener('click', function (e) {
     const btn = e.target.closest('[data-lb-filter]');

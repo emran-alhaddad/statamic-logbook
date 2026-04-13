@@ -34,28 +34,18 @@ return [
     ],
 
     'audit_logs' => [
+        // Curated defaults only. Set true to merge in discovered Statamic events.
+        'discover_events' => (bool) env('LOGBOOK_AUDIT_DISCOVER_EVENTS', false),
 
-        // Default behavior: listen to all Statamic events, then exclude noisy ones below.
-        // 'events' is kept as a fallback allow-list if auto discovery is unavailable.
+        // Curated high-signal mutation events (default allow-list).
         'events' => [
-            // Fallback high-signal mutation events.
-
-            // Assets
-            \Statamic\Events\AssetCreated::class,
-            \Statamic\Events\AssetDeleted::class,
-            \Statamic\Events\AssetSaved::class,
-            \Statamic\Events\AssetUploaded::class,
-
             // Entries
             \Statamic\Events\EntryCreated::class,
             \Statamic\Events\EntryDeleted::class,
             \Statamic\Events\EntrySaved::class,
             \Statamic\Events\EntrySaving::class,
 
-            // Collections / taxonomy / terms
-            \Statamic\Events\CollectionCreated::class,
-            \Statamic\Events\CollectionDeleted::class,
-            \Statamic\Events\CollectionSaved::class,
+            // Taxonomy / terms
             \Statamic\Events\TaxonomyDeleted::class,
             \Statamic\Events\TaxonomySaved::class,
             \Statamic\Events\TermDeleted::class,
@@ -80,13 +70,6 @@ return [
             \Statamic\Events\UserGroupSaved::class,
             \Statamic\Events\RoleDeleted::class,
             \Statamic\Events\RoleSaved::class,
-
-            // Forms
-            \Statamic\Events\FormDeleted::class,
-            \Statamic\Events\FormSaved::class,
-            \Statamic\Events\FormSubmitted::class,
-            \Statamic\Events\SubmissionDeleted::class,
-            \Statamic\Events\SubmissionSaved::class,
         ],
 
         // Block-list: events you do NOT want to audit.
@@ -105,9 +88,9 @@ return [
             \Statamic\Events\StacheCleared::class,
             \Statamic\Events\StacheWarmed::class,
             \Statamic\Events\StaticCacheCleared::class,
-            // Optional exclusions (commented so they stay audited unless you want less noise):
-            // \Statamic\Events\SearchIndexUpdated::class,
-            // \Statamic\Events\UrlInvalidated::class,
+            // Optional lower-signal defaults:
+            \Statamic\Events\SearchIndexUpdated::class,
+            \Statamic\Events\UrlInvalidated::class,
         ], array_filter(array_map('trim', explode(',', env(
             'LOGBOOK_AUDIT_EXCLUDE_EVENTS',
             ''

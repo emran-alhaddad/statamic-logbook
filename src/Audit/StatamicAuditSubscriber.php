@@ -18,14 +18,16 @@ class StatamicAuditSubscriber
 
     public function subscribe(): void
     {
-        if (!config('logbook.audit_logs.enabled', true)) return;
+        if (! config('logbook.audit_logs.enabled', true)) {
+            return;
+        }
 
-        $events = $this->discoverEvents();
-        $excluded = array_values(array_filter((array) config('logbook.audit_logs.exclude_events', []), fn($e) => is_string($e) && $e !== ''));
+        $events = $this->eventsToListen();
+        $excluded = array_values(array_filter((array) config('logbook.audit_logs.exclude_events', []), fn ($e) => is_string($e) && $e !== ''));
         $excludedMap = array_fill_keys($excluded, true);
 
         foreach ($events as $eventClass) {
-            if (!is_string($eventClass) || !class_exists($eventClass) || isset($excludedMap[$eventClass])) {
+            if (! is_string($eventClass) || ! class_exists($eventClass) || isset($excludedMap[$eventClass])) {
                 continue;
             }
 
@@ -36,9 +38,22 @@ class StatamicAuditSubscriber
     }
 
     /**
-     * Discover Statamic event classes automatically.
-     * Falls back to configured allow-list when discovery is unavailable.
+     * Curated mode by default (configured allow-list only).
+     * Optional discovery can be enabled by config for power users.
      *
+     * @return array<int, string>
+     */
+    private function eventsToListen(): array
+    {
+        $configured = array_values(array_filter((array) config('logbook.audit_logs.events', []), fn ($e) => is_string($e) && $e !== ''));
+        if (! config('logbook.audit_logs.discover_events', false)) {
+            return array_values(array_unique($configured));
+        }
+
+        return array_values(array_unique(array_merge($configured, $this->discoverEvents())));
+    }
+
+    /**
      * @return array<int, string>
      */
     private function discoverEvents(): array
@@ -53,10 +68,6 @@ class StatamicAuditSubscriber
                     $events[] = $class;
                 }
             }
-        }
-
-        if (empty($events)) {
-            $events = (array) config('logbook.audit_logs.events', []);
         }
 
         return array_values(array_unique($events));
@@ -90,27 +101,33 @@ class StatamicAuditSubscriber
             return;
         }
 
+        $entryKey = $this->entryKey($entry);
+
         // Deleted: record without changes
         if ($eventClass === \Statamic\Events\EntryDeleted::class) {
             $this->record([
-                'action' => 'statamic.' . class_basename($eventClass),
+                'action' => 'statamic.entry.deleted',
                 'subject_type' => 'entry',
                 'subject_id' => (string) $entry->id(),
                 'subject_handle' => (string) $entry->slug(),
                 'subject_title' => (string) ($entry->get('title') ?? $entry->slug()),
                 'changes' => null,
                 'meta' => [
+                    'raw_event' => class_basename($eventClass),
+                    'operation' => 'deleted',
                     'collection' => $entry->collectionHandle(),
                     'site' => $entry->site()?->handle(),
                     'uri' => $entry->uri(),
                 ],
             ]);
+            unset(self::$entryBefore[$entryKey]);
             return;
         }
 
         // Saved/Created/etc: record with diff if we have "before"
         $after = $this->entrySnapshot($entry);
-        $before = self::$entryBefore[$this->entryKey($entry)] ?? [];
+        $before = self::$entryBefore[$entryKey] ?? [];
+        unset(self::$entryBefore[$entryKey]);
 
         $changes = empty($before)
             ? $this->createdChanges($after)
@@ -119,14 +136,17 @@ class StatamicAuditSubscriber
         // If nothing changed (common on save), you can skip:
         if (empty($changes)) return;
 
+        $operation = empty($before) ? 'created' : 'updated';
         $this->record([
-            'action' => 'statamic.' . class_basename($eventClass),
+            'action' => 'statamic.entry.'.$operation,
             'subject_type' => 'entry',
             'subject_id' => (string) $entry->id(),
             'subject_handle' => (string) $entry->slug(),
             'subject_title' => (string) ($entry->get('title') ?? $entry->slug()),
             'changes' => $changes,
             'meta' => [
+                'raw_event' => class_basename($eventClass),
+                'operation' => $operation,
                 'collection' => $entry->collectionHandle(),
                 'site' => $entry->site()?->handle(),
                 'uri' => $entry->uri(),
@@ -138,25 +158,48 @@ class StatamicAuditSubscriber
     {
         // best-effort subject inference (no diff yet)
         $subject = $this->inferSubject($event);
+        $operation = $this->operationFromEventClass($eventClass);
+        $subjectType = $subject['type'] ?? 'statamic';
 
         $this->record([
-            'action' => 'statamic.' . class_basename($eventClass),
-            'subject_type' => $subject['type'] ?? 'statamic',
+            'action' => 'statamic.'.$subjectType.'.'.$operation,
+            'subject_type' => $subjectType,
             'subject_id' => $subject['id'] ?? null,
             'subject_handle' => $subject['handle'] ?? null,
             'subject_title' => $subject['title'] ?? null,
             'changes' => null,
             'meta' => [
-                'event' => $eventClass,
+                'raw_event' => class_basename($eventClass),
+                'operation' => $operation,
+                'event_class' => $eventClass,
             ],
         ]);
+    }
+
+    private function operationFromEventClass(string $eventClass): string
+    {
+        $name = class_basename($eventClass);
+        if (str_ends_with($name, 'Deleted')) {
+            return 'deleted';
+        }
+        if (str_ends_with($name, 'Created')) {
+            return 'created';
+        }
+        if (str_ends_with($name, 'Saved')) {
+            // Saved events are commonly "edit/update" semantics for non-entry subjects.
+            return 'updated';
+        }
+        if (str_ends_with($name, 'Saving')) {
+            return 'updating';
+        }
+        return 'event';
     }
 
     private function inferSubject(object $event): array
     {
         // Common Statamic event properties (best effort)
         foreach (['asset', 'term', 'taxonomy', 'nav', 'collection', 'user', 'globalSet', 'globals'] as $prop) {
-            if (!property_exists($event, $prop) || !$event->$prop) continue;
+            if (! property_exists($event, $prop) || ! $event->$prop) continue;
             $obj = $event->$prop;
 
             // Try common methods

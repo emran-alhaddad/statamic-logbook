@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+* Switched audit defaults to curated high-signal events, with optional discovery via `LOGBOOK_AUDIT_DISCOVER_EVENTS`.
+* Normalized audit action naming for non-entry subjects to operation-oriented actions (`created|updated|deleted|event`).
+
+### Fixed
+
+* Isolated audit persistence failures so audit DB issues do not break application requests.
+* Prevented stale entry snapshot buildup by clearing cached pre-save state after consume.
+* Made pulse filter binding idempotent to avoid duplicate listeners in repeated widget mounts.
+
+### Removed
+
+* Removed unused `LogbookLoggerFactory` legacy class.
+
 ---
 
 ## [1.2.0] – 2026-04-13

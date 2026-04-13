@@ -138,6 +138,7 @@ LOGBOOK_SYSTEM_LOGS_IGNORE_CHANNELS=deprecations
 LOGBOOK_SYSTEM_LOGS_IGNORE_MESSAGES=Since symfony/http-foundation,Unable to create configured logger. Using emergency logger.
 
 # Audit behavior
+LOGBOOK_AUDIT_DISCOVER_EVENTS=false
 LOGBOOK_AUDIT_EXCLUDE_EVENTS=
 LOGBOOK_AUDIT_IGNORE_FIELDS=updated_at,created_at,date,uri,slug
 LOGBOOK_AUDIT_MAX_VALUE_LENGTH=2000
@@ -171,6 +172,7 @@ LOGBOOK_RETENTION_DAYS=365
 #### Audit logging
 
 - `LOGBOOK_AUDIT_EXCLUDE_EVENTS`: Comma-separated full Statamic event class names to exclude from auditing.
+- `LOGBOOK_AUDIT_DISCOVER_EVENTS`: When `true`, merge discovered Statamic events with curated defaults (can increase noise). Default `false`.
 - `LOGBOOK_AUDIT_IGNORE_FIELDS`: Comma-separated fields ignored in before/after diffs.
 - `LOGBOOK_AUDIT_MAX_VALUE_LENGTH`: Max stored value length before truncation. Default `2000`.
 
@@ -181,7 +183,9 @@ LOGBOOK_RETENTION_DAYS=365
 ### Hidden gotchas and important clarifications
 
 - Logbook reads values from `config/logbook.php`; after changing `.env`, run `php artisan config:clear`.
+- Curated audit defaults are used by default; noisy blueprint/cache lifecycle events are excluded.
 - `LOGBOOK_AUDIT_EXCLUDE_EVENTS` extends built-in exclusions; it does not replace defaults.
+- `LOGBOOK_AUDIT_DISCOVER_EVENTS=true` can introduce broad/noisy event capture and should be enabled only when needed.
 - `LOGBOOK_SYSTEM_LOGS_IGNORE_MESSAGES` splits by comma, so keep each fragment comma-delimited.
 - Empty values in comma-based variables are automatically removed by config parsing.
 - Privacy masking keys (`password`, `token`, `secret`, ...) are configured in `config/logbook.php` under `privacy.mask_keys` (not via `.env`).
@@ -204,13 +208,13 @@ LOGBOOK_SYSTEM_LOGS_IGNORE_MESSAGES=Since symfony/http-foundation,Unable to crea
 
 ## 🧠 Audit Configuration
 
-### Exclude noisy events (default captures all Statamic events)
+### Exclude noisy events (default uses curated high-signal events)
 
 ```env
 LOGBOOK_AUDIT_EXCLUDE_EVENTS="Statamic\\Events\\ResponseCreated,Statamic\\Events\\SearchIndexUpdated"
 ```
 
-Use `audit_logs.exclude_events` in `config/logbook.php` to block specific event classes while keeping auto discovery enabled.
+Use `audit_logs.exclude_events` in `config/logbook.php` to block specific event classes. Keep discovery off unless you explicitly need wider coverage.
 
 ### Ignore noisy or irrelevant fields
 
