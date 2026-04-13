@@ -106,30 +106,44 @@ class LogbookDashboardData
     public static function dailyTrends(string $conn, int $days = 7): array
     {
         $days = max(1, min(14, $days));
-        $out = [];
+        $since = now()->subDays($days - 1)->startOfDay();
 
+        $systemByDay = DB::connection($conn)
+            ->table('logbook_system_logs')
+            ->where('created_at', '>=', $since)
+            ->selectRaw('DATE(created_at) as d, COUNT(*) as system_count')
+            ->groupBy(DB::raw('DATE(created_at)'))
+            ->pluck('system_count', 'd')
+            ->all();
+
+        $errorsByDay = DB::connection($conn)
+            ->table('logbook_system_logs')
+            ->where('created_at', '>=', $since)
+            ->whereIn('level', self::$errorLevels)
+            ->selectRaw('DATE(created_at) as d, COUNT(*) as error_count')
+            ->groupBy(DB::raw('DATE(created_at)'))
+            ->pluck('error_count', 'd')
+            ->all();
+
+        $auditByDay = DB::connection($conn)
+            ->table('logbook_audit_logs')
+            ->where('created_at', '>=', $since)
+            ->selectRaw('DATE(created_at) as d, COUNT(*) as audit_count')
+            ->groupBy(DB::raw('DATE(created_at)'))
+            ->pluck('audit_count', 'd')
+            ->all();
+
+        $out = [];
         for ($i = $days - 1; $i >= 0; $i--) {
             $day = now()->subDays($i)->startOfDay();
-            $end = (clone $day)->endOfDay();
+            $key = $day->toDateString();
 
-            $system = (int) DB::connection($conn)
-                ->table('logbook_system_logs')
-                ->whereBetween('created_at', [$day, $end])
-                ->count();
-
-            $errors = (int) DB::connection($conn)
-                ->table('logbook_system_logs')
-                ->whereBetween('created_at', [$day, $end])
-                ->whereIn('level', self::$errorLevels)
-                ->count();
-
-            $audit = (int) DB::connection($conn)
-                ->table('logbook_audit_logs')
-                ->whereBetween('created_at', [$day, $end])
-                ->count();
+            $system = (int) ($systemByDay[$key] ?? 0);
+            $errors = (int) ($errorsByDay[$key] ?? 0);
+            $audit = (int) ($auditByDay[$key] ?? 0);
 
             $out[] = [
-                'date' => $day->toDateString(),
+                'date' => $key,
                 'label' => $day->isoFormat('dd D'),
                 'system' => $system,
                 'errors' => $errors,
