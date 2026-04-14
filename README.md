@@ -56,6 +56,14 @@ All inside the Statamic Control Panel, with filtering, analytics, and CSV export
 
 ![Logbook Live Pulse](docs/images/widgets/widget-live-pulse.png)
 
+### Widget slugs (handles)
+
+Use these widget handles when configuring dashboard widgets:
+
+- `logbook_stats` (Overview cards)
+- `logbook_trends` (Volume by day)
+- `logbook_pulse` (Live feed)
+
 ---
 
 ## Compatibility
