@@ -119,6 +119,16 @@ return [
         'backpressure' => env('LOGBOOK_SPOOL_BACKPRESSURE', 'drop_oldest'),
     ],
 
+    'scheduler' => [
+        'flush_spool' => [
+            // Scheduler activates only when ingest mode is `spool`.
+            'enabled' => (bool) env('LOGBOOK_SCHEDULER_FLUSH_SPOOL_ENABLED', true),
+            // Interval in minutes for running `logbook:flush-spool`.
+            'every_minutes' => (int) env('LOGBOOK_SCHEDULER_FLUSH_SPOOL_EVERY_MINUTES', 60),
+            'without_overlapping' => (bool) env('LOGBOOK_SCHEDULER_FLUSH_SPOOL_WITHOUT_OVERLAPPING', true),
+        ],
+    ],
+
     'privacy' => [
         'mask_keys' => [
             'password',

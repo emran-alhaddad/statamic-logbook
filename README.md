@@ -153,6 +153,11 @@ LOGBOOK_INGEST_MODE=sync
 LOGBOOK_SPOOL_PATH=storage/app/logbook/spool
 LOGBOOK_SPOOL_MAX_MB=256
 LOGBOOK_SPOOL_BACKPRESSURE=drop_oldest
+
+# Addon scheduler (flush spool)
+LOGBOOK_SCHEDULER_FLUSH_SPOOL_ENABLED=true
+LOGBOOK_SCHEDULER_FLUSH_SPOOL_EVERY_MINUTES=60
+LOGBOOK_SCHEDULER_FLUSH_SPOOL_WITHOUT_OVERLAPPING=true
 ```
 
 ### Short `.env` example (minimal working setup)
@@ -197,6 +202,9 @@ LOGBOOK_SPOOL_PATH=storage/app/logbook/spool
 - `LOGBOOK_SPOOL_PATH`: spool directory path.
 - `LOGBOOK_SPOOL_MAX_MB`: max spool size before backpressure policy applies.
 - `LOGBOOK_SPOOL_BACKPRESSURE`: currently supports `drop_oldest`.
+- `LOGBOOK_SCHEDULER_FLUSH_SPOOL_ENABLED`: enable/disable addon-level scheduler for flush command (default `true`).
+- `LOGBOOK_SCHEDULER_FLUSH_SPOOL_EVERY_MINUTES`: interval (minutes) for addon-level flush scheduling (default `60`).
+- `LOGBOOK_SCHEDULER_FLUSH_SPOOL_WITHOUT_OVERLAPPING`: apply overlap protection for scheduled flush runs (default `true`).
 
 ---
 
@@ -236,7 +244,25 @@ Command output includes:
 - failed files (before/after)
 - failure reason and failed-file destination when flush fails
 
-### Laravel scheduler entry (app code)
+### Built-in addon scheduler (spool mode)
+
+When `LOGBOOK_INGEST_MODE=spool`, the addon auto-registers `logbook:flush-spool` in Laravel Scheduler.
+
+Default behavior:
+
+- Runs every 60 minutes
+- Uses `withoutOverlapping()` by default
+- Can be tuned via:
+  - `LOGBOOK_SCHEDULER_FLUSH_SPOOL_ENABLED`
+  - `LOGBOOK_SCHEDULER_FLUSH_SPOOL_EVERY_MINUTES`
+  - `LOGBOOK_SCHEDULER_FLUSH_SPOOL_WITHOUT_OVERLAPPING`
+
+Important:
+
+- This scheduler is only active in `spool` mode.
+- `logbook:prune` is not auto-scheduled by the addon.
+
+### Application-level scheduler entry (optional override)
 
 Add to your app scheduler (`routes/console.php` or `Console\Kernel`):
 
@@ -356,7 +382,8 @@ Run tests:
 
 Known tags:
 
-- `v1.5.0` (current)
+- `v1.5.1` (current)
+- `v1.5.0`
 - `v1.4.0`
 - `v1.3.1`
 - `v1.3.0`
@@ -368,8 +395,8 @@ Recent changes after `v1.2.0` are documented under `CHANGELOG.md` -> `Unreleased
 
 ### Current release
 
-- Current release: `v1.5.0`
-- Focus: CSRF compatibility hardening for CP maintenance CTAs using form-encoded POST + `_token`.
+- Current release: `v1.5.1`
+- Focus: addon-level spool flush scheduler with env-controlled interval/defaults and spool-mode activation guard.
 
 ---
 

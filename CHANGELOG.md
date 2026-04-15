@@ -23,6 +23,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.5.1] – 2026-04-15
+
+### Added
+
+* Addon-level scheduler registration for `logbook:flush-spool` when spool ingest mode is enabled.
+
+### Changed
+
+* Added env-configurable flush interval (`LOGBOOK_SCHEDULER_FLUSH_SPOOL_EVERY_MINUTES`) with default hourly behavior.
+* Added env toggles for scheduler enablement and overlap protection.
+
+### Fixed
+
+* (none)
+
+---
+
 ## [1.5.0] – 2026-04-15
 
 ### Added

@@ -2,6 +2,7 @@
 
 namespace EmranAlhaddad\StatamicLogbook;
 
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Log\Events\MessageLogged;
@@ -143,8 +144,37 @@ class LogbookServiceProvider extends AddonServiceProvider
         }
 
         $this->registerSystemLogs();
+        $this->registerAddonScheduler();
         $this->registerPermissions();
         $this->bootCpUtility();
+    }
+
+    protected function registerAddonScheduler(): void
+    {
+        $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
+            $ingestMode = (string) config('logbook.ingest.mode', 'sync');
+            $enabled = (bool) config('logbook.scheduler.flush_spool.enabled', true);
+
+            if ($ingestMode !== 'spool' || ! $enabled) {
+                return;
+            }
+
+            $everyMinutes = (int) config('logbook.scheduler.flush_spool.every_minutes', 60);
+            if ($everyMinutes < 1 || $everyMinutes > 1440) {
+                $everyMinutes = 60;
+            }
+
+            $event = $schedule->command('logbook:flush-spool');
+            $event->everyMinute()->when(function () use ($everyMinutes): bool {
+                $now = now();
+                $minuteOfDay = (int) $now->format('G') * 60 + (int) $now->format('i');
+                return $minuteOfDay % $everyMinutes === 0;
+            });
+
+            if ((bool) config('logbook.scheduler.flush_spool.without_overlapping', true)) {
+                $event->withoutOverlapping();
+            }
+        });
     }
 
     protected function registerSystemLogs(): void
