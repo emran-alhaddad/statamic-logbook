@@ -153,17 +153,17 @@
     __logbookToast('info', `${commandLabel}: in-progress`);
 
     try {
-      const csrfTokenTag = document.querySelector('meta[name="csrf-token"]');
-      const csrfToken = csrfTokenTag ? csrfTokenTag.getAttribute('content') : '';
+      const formData = new URLSearchParams();
+      formData.append('_token', '{{ csrf_token() }}');
+
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
           'X-Requested-With': 'XMLHttpRequest',
-          ...(csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {}),
         },
-        body: '{}',
+        body: formData.toString(),
       });
 
       const data = await response.json().catch(function () { return {}; });

@@ -23,6 +23,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.5.0] – 2026-04-15
+
+### Added
+
+* (none)
+
+### Changed
+
+* Updated CP maintenance action requests to submit URL-encoded form payloads for Laravel/Statamic CSRF compatibility.
+
+### Fixed
+
+* Fixed `CSRF token mismatch.` when triggering Logbook CP command CTAs (`Prune Logs` / `Flush Spool`).
+
+---
+
 ## [1.4.0] – 2026-04-15
 
 ### Added

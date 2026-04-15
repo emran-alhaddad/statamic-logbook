@@ -287,6 +287,8 @@ Each action shows a CP toast status lifecycle:
 - `done` on success
 - `failed` on command/transport error
 
+Implementation note: CP action requests are submitted as form-encoded POST with `_token` to satisfy Laravel/Statamic CSRF validation.
+
 ---
 
 ## Quick Verification
@@ -354,7 +356,8 @@ Run tests:
 
 Known tags:
 
-- `v1.4.0` (current)
+- `v1.5.0` (current)
+- `v1.4.0`
 - `v1.3.1`
 - `v1.3.0`
 - `v1.2.0`
@@ -365,8 +368,8 @@ Recent changes after `v1.2.0` are documented under `CHANGELOG.md` -> `Unreleased
 
 ### Current release
 
-- Current release: `v1.4.0`
-- Focus: CP maintenance CTAs for prune/flush commands with toast feedback, plus command registration hardening for CP-triggered execution.
+- Current release: `v1.5.0`
+- Focus: CSRF compatibility hardening for CP maintenance CTAs using form-encoded POST + `_token`.
 
 ---
 
