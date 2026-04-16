@@ -2,7 +2,7 @@
     $pid = $pulseId ?? 'lb_pulse_'.preg_replace('/\W/', '', uniqid('', true));
 @endphp
 
-<div id="{{ $pid }}" class="logbook-pulse-root">
+<div id="{{ $pid }}" class="logbook-pulse-root" v-pre>
     <div class="flex items-center justify-between mb-1">
         <div>
             <p class="subhead mb-1 text-gray-600 dark:text-dark-175">Logbook</p>

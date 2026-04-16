@@ -86,7 +86,7 @@
     </a>
   </div>
 
-  <div class="p-4 w-full emran">
+  <div class="p-4 w-full emran" v-pre>
     @yield('panel')
   </div>
 </div>
