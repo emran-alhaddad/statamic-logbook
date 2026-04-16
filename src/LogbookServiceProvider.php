@@ -79,7 +79,7 @@ class LogbookServiceProvider extends AddonServiceProvider
                 return collect();
             }
 
-            $merged = collect($extensions[$abstract] ?? []);
+            $merged = $this->normalizeWidgetRegistry($extensions[$abstract] ?? collect(), $abstract);
 
             foreach ($extensions as $class => $bindings) {
                 if (! is_string($class) || ! class_exists($class)) {
@@ -91,7 +91,7 @@ class LogbookServiceProvider extends AddonServiceProvider
                 if (! $bindings instanceof \Illuminate\Support\Collection) {
                     continue;
                 }
-                $merged = $merged->merge($bindings);
+                $merged = $merged->merge($this->normalizeWidgetRegistry($bindings, $abstract));
             }
 
             foreach ([
@@ -105,7 +105,7 @@ class LogbookServiceProvider extends AddonServiceProvider
                 $widgetClass::register();
                 $map = $extensions[$widgetClass] ?? null;
                 if ($map instanceof \Illuminate\Support\Collection) {
-                    $merged = $merged->merge($map);
+                    $merged = $merged->merge($this->normalizeWidgetRegistry($map, $abstract));
                 } else {
                     $merged->put($widgetClass::handle(), $widgetClass);
                 }
@@ -113,6 +113,37 @@ class LogbookServiceProvider extends AddonServiceProvider
 
             return $merged;
         });
+    }
+
+    /**
+     * Keep only valid widget registry pairs: handle => widget class-string.
+     *
+     * Statamic extensions collections may include other payload types (for example
+     * dashboard widget config arrays). Those must never leak into app('statamic.widgets').
+     *
+     * @param  \Illuminate\Support\Collection|array<mixed>  $registry
+     * @return \Illuminate\Support\Collection<string, class-string<Widget>>
+     */
+    protected function normalizeWidgetRegistry(\Illuminate\Support\Collection|array $registry, string $abstract): \Illuminate\Support\Collection
+    {
+        $source = $registry instanceof \Illuminate\Support\Collection ? $registry : collect($registry);
+        $normalized = collect();
+
+        foreach ($source as $key => $value) {
+            $class = null;
+
+            if (is_string($value) && class_exists($value) && is_subclass_of($value, $abstract)) {
+                $class = $value;
+            } elseif (is_string($key) && class_exists($key) && is_subclass_of($key, $abstract)) {
+                $class = $key;
+            }
+
+            if ($class !== null) {
+                $normalized->put($class::handle(), $class);
+            }
+        }
+
+        return $normalized;
     }
 
     protected function bootLogbook(): void

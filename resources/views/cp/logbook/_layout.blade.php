@@ -5,16 +5,29 @@
 @section('content')
 <style>
   /* Full width in CP */
-  .content .container { max-width: 100% !important; }
+  .content .container {
+    max-width: 100% !important;
+  }
 
   /* Small UI tweaks */
-  .logbook-subtle { color: rgba(55,65,81,.85); }
-  .logbook-card { border-radius: 14px; }
-  .logbook-tab { position: relative; }
+  .logbook-subtle {
+    color: rgba(55, 65, 81, .85);
+  }
+
+  .logbook-card {
+    border-radius: 14px;
+  }
+
+  .logbook-tab {
+    position: relative;
+  }
+
   .logbook-tab.active::after {
     content: "";
     position: absolute;
-    left: 0; right: 0; bottom: -1px;
+    left: 0;
+    right: 0;
+    bottom: -1px;
     height: 2px;
     background: #2563eb;
     border-radius: 999px;
@@ -27,7 +40,6 @@
     border-radius: 12px;
     overflow: auto;
   }
-
 </style>
 
 <div class="mb-5">
@@ -110,7 +122,7 @@
   };
 
   function __logbookToast(type, text) {
-    const fallback = function () {
+    const fallback = function() {
       if (type === 'error') {
         alert(text);
       } else {
@@ -166,7 +178,9 @@
         body: formData.toString(),
       });
 
-      const data = await response.json().catch(function () { return {}; });
+      const data = await response.json().catch(function() {
+        return {};
+      });
       if (response.ok && data.ok) {
         __logbookToast('success', `${commandLabel}: done`);
       } else {
@@ -207,9 +221,9 @@
   function __logbookCopy() {
     const text = document.getElementById('logbook-modal-body').textContent || '';
     if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(text).then(function () {
+      navigator.clipboard.writeText(text).then(function() {
         alert('Copied to clipboard');
-      }, function (err) {
+      }, function(err) {
         // fallback
         __fallbackCopy(text);
       });
@@ -235,9 +249,8 @@
     }
   }
 
-  document.addEventListener('keydown', function (e) {
+  document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') __logbookClose();
   });
 </script>
 @endsection
-
