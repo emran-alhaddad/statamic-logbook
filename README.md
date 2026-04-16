@@ -1,9 +1,9 @@
 Statamic Logbook
 
-[![Latest Release](https://img.shields.io/github/v/release/emran-alhaddad/statamic-logbook?sort=semver)](https://github.com/emran-alhaddad/statamic-logbook/releases)
-[![License](https://img.shields.io/github/license/emran-alhaddad/statamic-logbook)](LICENSE)
-[![Open Issues](https://img.shields.io/github/issues/emran-alhaddad/statamic-logbook)](https://github.com/emran-alhaddad/statamic-logbook/issues)
-[![Last Commit](https://img.shields.io/github/last-commit/emran-alhaddad/statamic-logbook)](https://github.com/emran-alhaddad/statamic-logbook/commits/master)
+[Latest Release](https://github.com/emran-alhaddad/statamic-logbook/releases)
+[License](LICENSE)
+[Open Issues](https://github.com/emran-alhaddad/statamic-logbook/issues)
+[Last Commit](https://github.com/emran-alhaddad/statamic-logbook/commits/master)
 
 A production-ready logging and audit trail addon for Statamic.
 
@@ -46,15 +46,15 @@ All inside the Statamic Control Panel, with filtering, analytics, and CSV export
 
 #### Overview cards
 
-![Logbook Overview Cards](docs/images/widgets/widget-overview-cards.png)
+Logbook Overview Cards
 
 #### Trends
 
-![Logbook Trends Volume](docs/images/widgets/widget-trends-volume.png)
+Logbook Trends Volume
 
 #### Live pulse
 
-![Logbook Live Pulse](docs/images/widgets/widget-live-pulse.png)
+Logbook Live Pulse
 
 ### Widget slugs (handles)
 
@@ -68,11 +68,13 @@ Use these widget handles when configuring dashboard widgets:
 
 ## Compatibility
 
-| Component | Supported |
-| --------- | --------- |
+
+| Component | Supported  |
+| --------- | ---------- |
 | Statamic  | v4, v5, v6 |
-| Laravel   | 10, 11 |
-| PHP       | 8.1+ |
+| Laravel   | 10, 11     |
+| PHP       | 8.1+       |
+
 
 ---
 
@@ -323,9 +325,9 @@ Implementation note: CP action requests are submitted as form-encoded POST with 
 2. Run `php artisan config:clear`.
 3. Run `php artisan logbook:install`.
 4. Trigger a test log:
-   ```php
+  ```php
    \Log::error('logbook smoke test', ['source' => 'manual-check']);
-   ```
+  ```
 5. If in spool mode, run `php artisan logbook:flush-spool --type=all`.
 6. Confirm rows appear in CP (System Logs / Audit Logs).
 
@@ -407,7 +409,7 @@ MIT License. See `LICENSE`.
 ## Author
 
 Built and maintained by Emran Alhaddad  
-GitHub: <https://github.com/emran-alhaddad>
+GitHub: [https://github.com/emran-alhaddad](https://github.com/emran-alhaddad)
 
 ## Changelog
 
