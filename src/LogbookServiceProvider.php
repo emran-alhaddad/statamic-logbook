@@ -38,18 +38,32 @@ use Statamic\Widgets\Widget;
  *
  * Design notes
  * ------------
+ * - The addon is declared as a Statamic addon via the `extra.statamic`
+ *   block in composer.json. Without that block, Statamic's
+ *   {@see \Statamic\Addons\Manifest::build()} filters the package out of
+ *   `vendor/composer/installed.json` and {@see AddonServiceProvider::getAddon()}
+ *   returns null, which silently skips the entire Statamic boot chain
+ *   (`bootWidgets`, `bootCommands`, `bootAddon`, …). The historical
+ *   `statamic.widgets` rebind was a workaround that hid this
+ *   misconfiguration on Statamic 5 by manually re-registering widgets
+ *   in a lazy closure; on Statamic 6 the same rebind broke the native
+ *   `registerBindingAlias('widgets', Widget::class)` wiring.
+ *
  * - The historical eager rebind of `app('statamic.widgets')` has been
- *   replaced by the capability-gated {@see WidgetRegistryShim} which
- *   runs after Statamic's booted callbacks and only acts when the
- *   core binding is missing our handles. This keeps Statamic 6 happy
- *   (it binds `statamic.widgets` natively via
- *   {@see \Statamic\Providers\ExtensionServiceProvider}) while still
- *   covering the Statamic 5 widget-registration quirk that required
- *   the original workaround.
+ *   replaced by the capability-gated {@see WidgetRegistryShim}, which
+ *   runs synchronously at the tail of bootAddon() (after
+ *   `parent::boot()` has invoked `bootWidgets()`) and only acts when
+ *   the core binding is missing our handles. On Statamic 6 this is a
+ *   no-op; on Statamic 5 it retains the safety-net behaviour.
  *
  * - Boot logic lives in {@see bootAddon()} (the Statamic-preferred
  *   hook) so it runs after core has finished priming the extensions
- *   container.
+ *   container. We deliberately do NOT wrap any work inside a nested
+ *   `Statamic::booted(...)` from here — we are already running inside
+ *   a booted callback, and
+ *   {@see \Statamic\Statamic::runBootedCallbacks()} iterates a snapshot
+ *   and clears the queue after the loop, so any callback queued from
+ *   within would silently never fire.
  *
  * - The class never holds per-process "already booted" flags; we rely
  *   on container singletons and `Event::hasListeners(...)` where
@@ -113,8 +127,17 @@ class LogbookServiceProvider extends AddonServiceProvider
      * expected to be a no-op; on Statamic 5 it covers the historical
      * registration quirk.
      *
-     * Wrapped in Statamic::booted so it runs after core's own widget
-     * registration has completed.
+     * This runs synchronously inside bootAddon(), which Statamic invokes
+     * *after* bootWidgets() has already iterated `$this->widgets` and
+     * called `$class::register()` on each. By the time we're here, the
+     * core 'statamic.extensions' binding has either already received our
+     * handles (expected on v6) or we're on a host where that step was
+     * skipped and the shim needs to back-fill.
+     *
+     * We deliberately do NOT wrap this in Statamic::booted() — we are
+     * already inside a booted callback, and runBootedCallbacks()
+     * iterates a snapshot and clears the queue afterwards, so any
+     * callback queued from within would silently never fire.
      */
     protected function applyWidgetRegistryShimIfNeeded(): void
     {
@@ -122,15 +145,13 @@ class LogbookServiceProvider extends AddonServiceProvider
             return;
         }
 
-        Statamic::booted(function (): void {
-            try {
-                (new WidgetRegistryShim($this->app, $this->widgets))->applyIfNeeded();
-            } catch (\Throwable $e) {
-                // Shim is strictly a back-compat safety net. If it fails, the
-                // addon must still boot — widgets will use whatever the host
-                // already has registered.
-            }
-        });
+        try {
+            (new WidgetRegistryShim($this->app, $this->widgets))->applyIfNeeded();
+        } catch (\Throwable $e) {
+            // Shim is strictly a back-compat safety net. If it fails, the
+            // addon must still boot — widgets will use whatever the host
+            // already has registered.
+        }
     }
 
     protected function registerAuditSubscriber(): void
