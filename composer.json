@@ -32,6 +32,10 @@
     }
   },
   "extra": {
+    "statamic": {
+      "name": "Logbook",
+      "description": "Statamic add-on for system logs and user audit logs stored in a database, with CP UI, analytics, and CSV export."
+    },
     "laravel": {
       "providers": [
         "EmranAlhaddad\\StatamicLogbook\\LogbookServiceProvider"
