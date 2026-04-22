@@ -9,17 +9,91 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+The next release (`2.0.0`) adds first-class Statamic 6 support while keeping
+Statamic 4 and 5 working from the same branch. Statamic 3 continues on the
+dedicated `1.x` LTS branch.
+
 ### Added
 
-* (none)
+* **Statamic 6 support.** The addon now boots cleanly on Statamic 6 without
+  clobbering the core `statamic.widgets` extension binding.
+* **`Audit\EventMap`**: a per-major curated event registry (majors 3–6) that
+  resolves the running Statamic major from `Statamic::version()` or
+  `vendor/composer/installed.json` and returns only the event classes that
+  exist in that major. Missing or renamed events are silently dropped rather
+  than producing class-not-found fatals at boot.
+* **`Widgets\Registry\WidgetRegistryShim`**: a capability-gated back-compat
+  helper that only re-registers Logbook widgets when the core
+  `statamic.extensions` binding does not already contain our handles. On
+  Statamic 6 this is a no-op; on Statamic 5 it retains the historical
+  widget-registration safety net.
+* **New unit tests**: `EventMapTest`, `StatamicAuditSubscriberResolutionTest`,
+  `WidgetRegistryShimTest` covering per-major event resolution, silent
+  filtering of missing event classes, exclusion semantics, and the widget
+  shim's idempotency.
+* **`orchestra/testbench`** (dev dependency) for future Laravel application
+  harness and integration tests.
 
 ### Changed
 
-* (none)
+* **BREAKING – config surface.** `config/logbook.php` no longer references
+  `\Statamic\Events\*::class` constants directly. `audit_logs.events` and
+  `audit_logs.exclude_events` are now **string-based allow/deny lists** and
+  default to the curated per-major list produced by `Audit\EventMap`. Users
+  who previously hard-coded class-constant lists should migrate to string
+  FQCNs or rely on the curated defaults.
+* **BREAKING – config keys.** Added `audit_logs.use_curated_defaults`
+  (default `true`). Set to `false` to opt out of curated defaults and listen
+  only to `audit_logs.events`.
+* **BREAKING – config keys.** Added env driver `LOGBOOK_AUDIT_EVENTS` and
+  `LOGBOOK_AUDIT_EXCLUDE_EVENTS` for supplying comma-separated lists.
+* **`LogbookServiceProvider`**: boot logic moved from `boot()` to the
+  Statamic-preferred `bootAddon()` hook. Dropped static "already booted"
+  flags in favour of container singletons and `Event::hasListeners(...)`
+  where idempotency matters.
+* Minimum `statamic/cms` raised to `^4.0|^5.0|^6.0`. Statamic 3 users must
+  use the `1.x` LTS branch.
+* Minimum `illuminate/support` and `illuminate/database` raised to
+  `^9.0|^10.0|^11.0|^12.0`.
+* PHP constraint widened to `^8.1|^8.2|^8.3|^8.4`.
+* PHPUnit constraint widened to `^10.0|^11.0` to match the testbench matrix.
 
 ### Fixed
 
-* (none)
+* **Statamic 6 boot regression.** Removed the eager
+  `$this->app->bind('statamic.widgets', …)` rebind in
+  `LogbookServiceProvider::register()` that clobbered
+  `Statamic\Providers\ExtensionServiceProvider::registerBindingAlias()` and
+  broke widget registration on Statamic 6.
+* **Cross-major class-not-found fatals.** All Statamic event references are
+  now string FQCNs filtered through `class_exists()` before `Event::listen()`
+  so majors that have removed or renamed an event class never produce a
+  fatal at addon boot.
+* **`StatamicAuditSubscriber::isEntryEvent()`**: no longer hard-imports
+  `\Statamic\Entries\Entry` at the top of the file, which previously forced
+  autoload of a class that may not exist in every supported major. The
+  check is now `class_exists()`-gated with a duck-typed fallback.
+
+### Removed
+
+* Removed the eager `statamic.widgets` container binding override. The
+  widget registry is now left to core on Statamic 6 and shimmed only when a
+  handle is missing.
+
+### Security
+
+* Continued strict filtering of event class names before `Event::listen()`
+  to avoid untrusted class-loading from the config file.
+* Spool ingestion continues to use `LOCK_EX` on write paths (unchanged).
+
+### Upgrade notes
+
+* Users upgrading from `1.x` should:
+  1. Remove any explicit `\Statamic\Events\…::class` entries from
+     `config/logbook.php`. The curated defaults now cover Statamic 3–6.
+  2. If you relied on the old automatic discovery, set
+     `LOGBOOK_AUDIT_DISCOVER_EVENTS=true` (still supported).
+  3. If you pinned `statamic/cms: ^3.0`, stay on the `1.x` LTS branch.
 
 ---
 
