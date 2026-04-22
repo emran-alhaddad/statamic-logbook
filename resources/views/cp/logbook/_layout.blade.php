@@ -49,6 +49,10 @@
                class="lb-tab {{ $active === 'audit' ? 'lb-tab--active' : '' }}">
                 Audit Logs
             </a>
+            <a href="{{ cp_route('utilities.logbook.timeline') }}"
+               class="lb-tab {{ $active === 'timeline' ? 'lb-tab--active' : '' }}">
+                Timeline
+            </a>
         </nav>
 
         <div class="lb-panel-body" v-pre>

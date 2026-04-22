@@ -99,6 +99,29 @@
             <a class="lb-btn" href="{{ cp_route('utilities.logbook.audit.export', request()->query()) }}" title="Download matching rows as CSV">
                 Export CSV
             </a>
+            <button type="button"
+                    class="lb-live-tail"
+                    data-lb-live-tail
+                    data-lb-live-tail-json="{{ cp_route('utilities.logbook.audit.json') }}"
+                    aria-pressed="false"
+                    title="Auto-poll for new rows every few seconds">
+                <span class="lb-live-tail__dot" aria-hidden="true"></span>
+                <span data-lb-live-tail-label>Live tail</span>
+            </button>
+
+            <div class="lb-preset" data-lb-preset="audit">
+                <button type="button" class="lb-btn" data-lb-preset-toggle aria-haspopup="true" aria-expanded="false" title="Saved filter presets">
+                    Presets ▾
+                </button>
+                <div class="lb-preset__menu" role="menu" data-lb-preset-menu>
+                    <div data-lb-preset-list></div>
+                    <div class="lb-preset__sep"></div>
+                    <button type="button" class="lb-preset__item" data-lb-preset-save>
+                        <span>Save current filters…</span>
+                        <span class="lb-kbd" aria-hidden="true">+</span>
+                    </button>
+                </div>
+            </div>
         </div>
     </form>
 </div>

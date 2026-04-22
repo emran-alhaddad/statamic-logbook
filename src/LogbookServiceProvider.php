@@ -353,6 +353,18 @@ class LogbookServiceProvider extends AddonServiceProvider
                         ->name('audit')
                         ->middleware('can:view logbook');
 
+                    $router->get('/timeline', [LogbookUtilityController::class, 'timeline'])
+                        ->name('timeline')
+                        ->middleware('can:view logbook');
+
+                    $router->get('/system.json', [LogbookUtilityController::class, 'systemJson'])
+                        ->name('system.json')
+                        ->middleware('can:view logbook');
+
+                    $router->get('/audit.json', [LogbookUtilityController::class, 'auditJson'])
+                        ->name('audit.json')
+                        ->middleware('can:view logbook');
+
                     $router->get('/system/export.csv', [LogbookUtilityController::class, 'exportSystemCsv'])
                         ->name('system.export')
                         ->middleware('can:export logbook');

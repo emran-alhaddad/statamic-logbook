@@ -122,6 +122,201 @@ class LogbookUtilityController
     }
 
     /**
+     * Unified timeline — interleaved system + audit events grouped by day.
+     *
+     * Query parameters:
+     *   from, to                — ISO date bounds
+     *   q                       — text filter (system message OR audit subject)
+     *   types[]                 — subset of ['system', 'audit']; default both
+     *   sev[]                   — subset of ['error', 'warn', 'info']; default all
+     */
+    public function timeline(Request $request)
+    {
+        $conn = DbConnectionResolver::resolve();
+
+        $from = $request->get('from');
+        $to   = $request->get('to');
+        $q    = trim((string) $request->get('q'));
+        $types = (array) $request->get('types', ['system', 'audit']);
+        $types = array_values(array_intersect($types, ['system', 'audit'])) ?: ['system', 'audit'];
+        $sev = (array) $request->get('sev', []);
+        $sev = array_values(array_intersect($sev, ['error', 'warn', 'info']));
+
+        $limit = max(20, min(500, (int) $request->get('limit', 200)));
+
+        $items = [];
+
+        if (in_array('system', $types, true)) {
+            $sys = DB::connection($conn)->table('logbook_system_logs');
+            if ($from) $sys->whereDate('created_at', '>=', $from);
+            if ($to)   $sys->whereDate('created_at', '<=', $to);
+            if ($q !== '') $sys->where('message', 'like', "%{$q}%");
+            if (! empty($sev)) {
+                $levels = [];
+                if (in_array('error', $sev, true)) $levels = array_merge($levels, ['emergency', 'alert', 'critical', 'error']);
+                if (in_array('warn', $sev, true))  $levels[] = 'warning';
+                if (in_array('info', $sev, true))  $levels = array_merge($levels, ['notice', 'info', 'debug']);
+                if (! empty($levels)) $sys->whereIn('level', $levels);
+            }
+
+            foreach ($sys->orderByDesc('id')->limit($limit)->get() as $r) {
+                $level = strtolower((string) ($r->level ?? 'info'));
+                $severity = in_array($level, ['emergency', 'alert', 'critical', 'error'], true)
+                    ? 'error'
+                    : ($level === 'warning' ? 'warn' : 'info');
+                $items[] = [
+                    'id'       => 'sys-'.$r->id,
+                    'type'     => 'system',
+                    'severity' => $severity,
+                    'label'    => $level,
+                    'message'  => (string) ($r->message ?? ''),
+                    'meta'     => trim(strtoupper($level).' · '.(string) ($r->channel ?? 'app'), ' ·'),
+                    'user'     => $r->user_id ?? null,
+                    'at'       => \Carbon\Carbon::parse($r->created_at),
+                ];
+            }
+        }
+
+        if (in_array('audit', $types, true) && (empty($sev) || in_array('audit', $sev, true))) {
+            $aud = DB::connection($conn)->table('logbook_audit_logs');
+            if ($from) $aud->whereDate('created_at', '>=', $from);
+            if ($to)   $aud->whereDate('created_at', '<=', $to);
+            if ($q !== '') {
+                $aud->where(function ($qq) use ($q) {
+                    $qq->where('subject_title', 'like', "%{$q}%")
+                        ->orWhere('subject_handle', 'like', "%{$q}%")
+                        ->orWhere('action', 'like', "%{$q}%");
+                });
+            }
+
+            foreach ($aud->orderByDesc('id')->limit($limit)->get() as $r) {
+                $action = (string) ($r->action ?? '');
+                $items[] = [
+                    'id'       => 'aud-'.$r->id,
+                    'type'     => 'audit',
+                    'severity' => 'audit',
+                    'label'    => $action,
+                    'message'  => (string) ($r->subject_title ?: $r->subject_handle ?: $action),
+                    'meta'     => trim(($r->subject_type ?? '').' · '.($r->subject_handle ?? ''), ' ·'),
+                    'user'     => $r->user_email ?? $r->user_id ?? null,
+                    'at'       => \Carbon\Carbon::parse($r->created_at),
+                ];
+            }
+        }
+
+        usort($items, fn ($a, $b) => $b['at']->timestamp <=> $a['at']->timestamp);
+        $items = array_slice($items, 0, $limit);
+
+        // Group by calendar day (YYYY-MM-DD) for the rendered timeline rails.
+        $grouped = [];
+        foreach ($items as $it) {
+            $day = $it['at']->toDateString();
+            $grouped[$day][] = $it;
+        }
+
+        return view('statamic-logbook::cp.logbook.timeline', [
+            'filters'   => $request->all(),
+            'grouped'   => $grouped,
+            'types'     => $types,
+            'sev'       => $sev,
+            'itemCount' => count($items),
+            'limit'     => $limit,
+        ]);
+    }
+
+    /**
+     * JSON endpoint: newer system log rows since `after_id`. Used by the
+     * live-tail toggle on the system logs page.
+     */
+    public function systemJson(Request $request): JsonResponse
+    {
+        $conn = DbConnectionResolver::resolve();
+        $afterId = (int) $request->get('after_id', 0);
+        $limit = max(1, min(100, (int) $request->get('limit', 25)));
+
+        $q = DB::connection($conn)->table('logbook_system_logs');
+        if ($afterId > 0) $q->where('id', '>', $afterId);
+
+        if ($level = $request->get('level')) $q->where('level', $level);
+        if ($channel = $request->get('channel')) $q->where('channel', $channel);
+        if ($search = trim((string) $request->get('q'))) $q->where('message', 'like', "%{$search}%");
+
+        $rows = $q->orderByDesc('id')->limit($limit)->get();
+
+        $out = [];
+        foreach ($rows as $r) {
+            $out[] = [
+                'id'         => (int) $r->id,
+                'created_at' => (string) $r->created_at,
+                'level'      => (string) $r->level,
+                'channel'    => (string) ($r->channel ?? ''),
+                'message'    => (string) ($r->message ?? ''),
+                'user_id'    => $r->user_id,
+            ];
+        }
+
+        // Reverse so the caller can append oldest-to-newest in the DOM.
+        $out = array_reverse($out);
+
+        $latest = $rows->first();
+
+        return response()->json([
+            'rows'        => $out,
+            'latest_id'   => $latest ? (int) $latest->id : $afterId,
+            'fetched_at'  => now()->toIso8601String(),
+            'count'       => count($out),
+        ]);
+    }
+
+    /**
+     * JSON endpoint: newer audit log rows since `after_id`. Used by the
+     * live-tail toggle on the audit logs page.
+     */
+    public function auditJson(Request $request): JsonResponse
+    {
+        $conn = DbConnectionResolver::resolve();
+        $afterId = (int) $request->get('after_id', 0);
+        $limit = max(1, min(100, (int) $request->get('limit', 25)));
+
+        $q = DB::connection($conn)->table('logbook_audit_logs');
+        if ($afterId > 0) $q->where('id', '>', $afterId);
+
+        if ($action = $request->get('action')) $q->where('action', $action);
+        if ($subject = $request->get('subject_type')) $q->where('subject_type', $subject);
+        if ($search = trim((string) $request->get('q'))) {
+            $q->where(function ($qq) use ($search) {
+                $qq->where('subject_title', 'like', "%{$search}%")
+                    ->orWhere('subject_handle', 'like', "%{$search}%");
+            });
+        }
+
+        $rows = $q->orderByDesc('id')->limit($limit)->get();
+
+        $out = [];
+        foreach ($rows as $r) {
+            $out[] = [
+                'id'             => (int) $r->id,
+                'created_at'     => (string) $r->created_at,
+                'action'         => (string) ($r->action ?? ''),
+                'subject_type'   => (string) ($r->subject_type ?? ''),
+                'subject_title'  => (string) ($r->subject_title ?? ''),
+                'subject_handle' => (string) ($r->subject_handle ?? ''),
+                'user'           => $r->user_email ?? $r->user_id ?? null,
+            ];
+        }
+        $out = array_reverse($out);
+
+        $latest = $rows->first();
+
+        return response()->json([
+            'rows'       => $out,
+            'latest_id'  => $latest ? (int) $latest->id : $afterId,
+            'fetched_at' => now()->toIso8601String(),
+            'count'      => count($out),
+        ]);
+    }
+
+    /**
      * Resolve a safe sort column / direction pair from request input.
      *
      * @param  array<int,string>  $allowed
