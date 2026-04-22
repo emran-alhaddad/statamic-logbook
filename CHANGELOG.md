@@ -15,6 +15,72 @@ dedicated `1.x` LTS branch.
 
 ### Added
 
+* **Premium-minimal CP design system.** The addon's Control Panel surface
+  has been rebuilt against a tokens-first architecture. Every color,
+  spacing step, radius, shadow, font size and motion curve now reads from
+  CSS custom properties on `:root`, with dark mode achieved by reassigning
+  the same tokens on `.dark`. The visual language shifts to a zinc-neutral
+  palette with an indigo/violet accent (`#6366f1` / `#7c3aed`), a 4 px
+  spacing baseline, tabular numerics for every count, and a consistent
+  11/12/13/14/16/20/24/28 px type scale. Host CP themes continue to work —
+  the tokens live on `.lb-page` scope and do not leak into other pages.
+* **Overview widget: sparklines + deltas.** The dashboard "Overview"
+  widget now renders an inline SVG sparkline for each primary KPI
+  (system, errors, audit) using the last 24 hourly buckets, alongside a
+  period-over-period delta chip ("↑ +12.4%", "↓ -3%", "— 0%") comparing
+  the current 24h window against the prior 24h. A fourth "Error ratio"
+  tile replaces the previous three-card layout so the window context is
+  visible at a glance.
+* **Unified timeline view.** A new third tab on
+  `/cp/utilities/logbook/timeline` interleaves system + audit events into
+  a single chronological rail, grouped by day with "Today" / "Yesterday"
+  labels. Events are filterable by type (system / audit) and severity
+  (errors / warnings / info), and each row carries its absolute
+  timestamp as a tooltip.
+* **Sortable columns.** System and audit tables now accept `sort` and
+  `dir` query parameters whitelisted per table (`id`, `created_at`,
+  `level`, `channel`, `user_id` for system; `id`, `created_at`, `action`,
+  `subject_type`, `user_email` for audit). Column headers render as
+  server-driven sort links with correct `aria-sort` state.
+* **Density toggle.** A Compact / Cozy / Spacious segmented control in
+  the utility toolbar applies a class to every `.lb-table` on the page
+  and persists the preference in localStorage under
+  `statamic-logbook.density`.
+* **Live tail.** System and audit pages gain a pulsing "Live tail"
+  toggle that polls a new JSON endpoint (`system.json` / `audit.json`)
+  every 5 seconds. When new rows land, the button surfaces a
+  "N new · click to refresh" hint; a second click reloads the page with
+  the user's filters preserved. Preference persists in localStorage
+  under `statamic-logbook.live-tail`.
+* **Saved filter presets.** A "Presets ▾" menu on system + audit pages
+  snapshots the current query string under a user-chosen name. Presets
+  are stored per-page in localStorage under
+  `statamic-logbook.presets.<scope>` and can be applied or deleted from
+  the menu.
+* **Row-as-JSON export.** Every system / audit row gains a "JSON" action
+  that opens the existing modal viewer pre-populated with the full
+  record as pretty-printed JSON, making copy-to-clipboard a two-click
+  operation.
+* **Keyboard shortcuts.** `/` focuses the page's primary search input;
+  `g s` navigates to system logs; `g a` navigates to audit logs.
+  Shortcuts are suppressed while typing in form fields.
+* **Relative-time tooltips.** All tabular timestamps now render as a
+  humanised relative time (e.g. "2 minutes ago") with the absolute UTC
+  timestamp exposed via the `title` attribute.
+* **Empty states.** Every widget + utility-page surface now renders a
+  consistent `.lb-empty` illustration + hint when there is nothing to
+  show, instead of collapsing to "—".
+* **`LogbookDashboardData` extensions.** `summary()` now also returns
+  `systemSpark24h` / `errorSpark24h` / `auditSpark24h` (24 hourly
+  integers each), the corresponding `*Prev` counts for the prior 24h
+  window, and `systemDelta` / `errorDelta` / `auditDelta` as
+  `{ value, pct, direction }` tuples. The hourly bucket query is
+  driver-aware (SQLite `strftime`, Postgres `to_char`, MySQL / MariaDB
+  `DATE_FORMAT`). A new `delta()` helper is exposed for reuse.
+* **`LogbookUtilityController` endpoints.** `timeline()`, `systemJson()`,
+  `auditJson()` back the three new features above, with
+  `can:view logbook` middleware.
+
 * **Statamic 6 support.** The addon now boots cleanly on Statamic 6 without
   clobbering the core `statamic.widgets` extension binding.
 * **Self-contained CP stylesheet.** `resources/dist/statamic-logbook.css`

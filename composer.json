@@ -1,6 +1,7 @@
 {
   "name": "emran-alhaddad/statamic-logbook",
   "description": "Statamic add-on for system logs and user audit logs stored in a database, with CP UI, analytics, and CSV export.",
+  "version": "2.0.0-beta.1",
   "type": "statamic-addon",
   "license": "MIT",
   "keywords": [
