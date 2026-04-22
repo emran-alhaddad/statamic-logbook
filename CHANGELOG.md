@@ -145,6 +145,19 @@ dedicated `1.x` LTS branch.
   `.lb-input`, `.lb-tabs`, `.lb-table`, `.lb-stat`, `.lb-modal__*`
   component classes from our shipped stylesheet, with explicit
   light/dark variants throughout.
+* **`Undefined property: Illuminate\View\Factory::$yieldContent` on
+  utility page render.** The previous `_layout.blade.php` embedded an
+  inline `<style>` block whose comment read "Scoped via the @yield
+  content wrapper". Blade's statement compiler accepts `@yield` with
+  an *optional* expression group — the regex matches `@yield` even
+  without parens — and `compileYield(null)` emits the raw property
+  reference `$__env->yieldContent` (no `echo`, no parens) into the
+  compiled template. At render time PHP then fails on an undefined
+  property access. The inline `<style>` has been dropped; the
+  container width override it contained has moved into the shipped
+  stylesheet (`.content .container:has(.lb-page)` and
+  `#main .page-wrapper:has(.lb-page)`) scoped to logbook pages so the
+  override can't bleed into unrelated CP pages.
 
 ### Removed
 

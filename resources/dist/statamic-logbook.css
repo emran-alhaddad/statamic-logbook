@@ -40,7 +40,18 @@
  * visual density stays consistent.
  */
 
+/* ---------- page width override for utility pages ----------
+   The Statamic 6 CP constrains utility page content to a narrow
+   max-width. On logbook pages we opt out so the tables + stat grid
+   have room to breathe. Scoped to .lb-page so we never bleed into
+   other CP pages. */
+.content .container:has(.lb-page),
+#main .page-wrapper:has(.lb-page) { max-width: 100% !important; }
+
 /* ---------- generic layout helpers ---------- */
+
+.lb-page { display: block; }
+.lb-panel-body { padding: 1rem; }
 
 .lb-stack { display: flex; flex-direction: column; gap: 2rem; }
 
