@@ -82,6 +82,31 @@ class LogbookServiceProvider extends AddonServiceProvider
         LogbookPulseWidget::class,
     ];
 
+    /**
+     * CP stylesheets to ship with the addon.
+     *
+     * Statamic's {@see AddonServiceProvider::bootStylesheets()} auto-publishes
+     * these paths to `public/vendor/{package}/css/{filename}.css` and
+     * auto-injects them into the CP `<head>` via `Statamic::style()`. We need
+     * this because Statamic's own CP Tailwind build scans only CP source
+     * paths for utility classes; any class we reference from addon Blade
+     * templates (e.g. `text-4xs`, `bg-dark-800`, `tracking-widest`,
+     * `dark:bg-dark-650`, `bg-orange`) is purged from the compiled CP CSS
+     * on Statamic 6. Shipping a small, hand-authored stylesheet keeps our
+     * widget and utility views visually correct independent of the host
+     * CP's purge configuration.
+     *
+     * Install consumers run `php artisan vendor:publish --tag=logbook`
+     * (or `--tag=statamic-logbook`) once after install; the
+     * `$publishAfterInstall` default on the parent provider makes Statamic
+     * republish these automatically after `statamic:install`.
+     *
+     * @var list<string>
+     */
+    protected $stylesheets = [
+        __DIR__ . '/../resources/dist/statamic-logbook.css',
+    ];
+
     public function register(): void
     {
         parent::register();

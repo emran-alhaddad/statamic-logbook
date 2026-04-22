@@ -4,11 +4,11 @@
 $b64 = fn($v) => base64_encode((string) $v);
 
 $levelColor = fn($l) => match (strtolower((string) $l)) {
-'emergency','alert','critical','error' => 'bg-red-700 text-white',
-'warning' => 'bg-orange text-black',
-'notice','info' => 'bg-blue text-white',
-'debug' => 'bg-gray-700 text-white',
-default => 'bg-gray-300 text-black'
+'emergency','alert','critical','error' => 'lb-badge lb-badge--error',
+'warning' => 'lb-badge lb-badge--warn',
+'notice','info' => 'lb-badge lb-badge--info',
+'debug' => 'lb-badge lb-badge--debug',
+default => 'lb-badge lb-badge--muted'
 };
 @endphp
 
@@ -70,11 +70,11 @@ default => 'bg-gray-300 text-black'
 <form method="GET" class="mb-4">
     <div class="flex flex-col gap-2 w-full">
         <div class="flex flex-row gap-2 items-end flex-1 min-w-[240px]">
-            <input type="date" name="from" value="{{ $filters['from'] ?? '' }}" class="input-text w-40">
-            <input type="date" name="to" value="{{ $filters['to'] ?? '' }}" class="input-text w-40">
+            <input type="date" name="from" value="{{ $filters['from'] ?? '' }}" class="input-text lb-field-sm">
+            <input type="date" name="to" value="{{ $filters['to'] ?? '' }}" class="input-text lb-field-sm">
         </div>
         <div class="flex flex-col gap-2 items-end flex-1 min-w-[240px]">
-            <select name="level" class="input-text w-40">
+            <select name="level" class="input-text lb-field-sm">
                 <option value="">All levels</option>
                 @foreach($levels as $lvl)
                 <option value="{{ $lvl }}" @selected(($filters['level'] ?? '' )===$lvl)>{{ $lvl }}</option>
@@ -108,12 +108,12 @@ default => 'bg-gray-300 text-black'
                 <td class="text-xs whitespace-nowrap">{{ $row->created_at }}</td>
 
                 <td>
-                    <span class="px-2 py-1 rounded-full text-xs font-semibold {{ $levelColor($row->level) }}">
+                    <span class="{{ $levelColor($row->level) }}">
                         {{ strtoupper($row->level) }}
                     </span>
                 </td>
 
-                <td class="max-w-[720px]">
+                <td class="lb-message-cell">
                     <div class="truncate" title="{{ $row->message }}">{{ $row->message }}</div>
                 </td>
 

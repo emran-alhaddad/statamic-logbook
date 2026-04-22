@@ -1,66 +1,75 @@
-<div class="flex flex-col gap-8">
+{{--
+    Logbook — Overview card widget
+    --------------------------------------------------------------
+    Styling comes from the addon-shipped stylesheet
+    (resources/dist/statamic-logbook.css), auto-registered via
+    $stylesheets on LogbookServiceProvider. We deliberately avoid
+    CP Tailwind utilities that get purged by the host CP's JIT
+    build (dark:*, bg-dark-*, text-4xs, tracking-widest, bg-orange,
+    subhead, icon-header-avatar, etc.).
+--}}
+<div class="lb-stack">
     <section>
-        <div class="flex items-center justify-between mb-1">
+        <div class="lb-header">
             <div>
-                <p class="subhead mb-1 text-gray-600 dark:text-dark-175">Logbook</p>
-                <h2>Health overview</h2>
-                <p class="text-4xs text-gray-600 dark:text-dark-175">Rolling 24h snapshot</p>
+                <p class="lb-header__kicker">Logbook</p>
+                <h2 class="lb-header__title">Health overview</h2>
+                <p class="lb-header__meta">Rolling 24h snapshot</p>
             </div>
-            <a href="{{ cp_route('utilities.logbook.system') }}" class="text-sm text-gray-600 dark:text-dark-175 hover:text-gray-800 dark:hover:text-dark-100 transition flex items-center gap-1">
+            <a href="{{ cp_route('utilities.logbook.system') }}" class="lb-header__link">
                 Open utility <span>→</span>
             </a>
         </div>
 
-        <div class="flex flex-col md:flex-row gap-4 my-4">
-            <div class="flex-1 bg-gray-200 dark:bg-dark-800 rounded-xl border border-gray-400 dark:border-dark-900 p-5">
-                <p class="text-4xs uppercase tracking-widest text-gray-600 dark:text-dark-175 font-semibold mb-3">System · 24h</p>
-                <p class="text-3xl font-bold tabular-nums">{{ $systemTotal24h }}</p>
-                <p class="text-4xs text-gray-600 dark:text-dark-175 mt-1">Lines written to logbook</p>
+        <div class="lb-cards">
+            <div class="lb-card">
+                <p class="lb-card__label">System · 24h</p>
+                <p class="lb-card__value">{{ $systemTotal24h }}</p>
+                <p class="lb-card__meta">Lines written to logbook</p>
             </div>
 
-            <div class="flex-1 bg-gray-200 dark:bg-dark-800 rounded-xl border border-red-200 dark:border-red-500/30 p-5 relative">
-                <p class="text-4xs uppercase tracking-widest text-red-500 font-semibold mb-3">Errors · 24h</p>
+            <div class="lb-card lb-card--danger">
+                <p class="lb-card__label lb-card__label--danger">Errors · 24h</p>
                 @if($systemErrors24h > 0)
-                    <span class="inline-flex items-center rounded-full bg-red-400 px-2 py-1 text-4xs font-semibold text-white ">Attention</span>
+                    <span class="lb-card__badge lb-card__badge--danger">Attention</span>
                 @else
-                    <span class="absolute top-4 right-4 inline-flex items-center px-2 py-0.5 rounded-full text-4xs font-semibold bg-gray-200 text-gray-800 dark:bg-dark-700 dark:text-dark-150">OK</span>
+                    <span class="lb-card__badge lb-card__badge--ok">OK</span>
                 @endif
-                <p class="text-3xl font-bold tabular-nums">{{ $systemErrors24h }}</p>
-                <p class="text-4xs text-red-500 mt-1">
+                <p class="lb-card__value">{{ $systemErrors24h }}</p>
+                <p class="lb-card__meta lb-card__meta--danger">
                     @if($systemTotal24h > 0)
-                        <span class="font-semibold">{{ $errorRatio }}%</span> of system volume
+                        <strong>{{ $errorRatio }}%</strong> of system volume
                     @else
                         No system volume in window
                     @endif
                 </p>
             </div>
 
-            <div class="flex-1 bg-gray-200 dark:bg-dark-800 rounded-xl border border-gray-400 dark:border-dark-900 p-5">
-                <p class="text-4xs uppercase tracking-widest text-orange font-semibold mb-3">Audit · 24h</p>
-                <p class="text-3xl font-bold tabular-nums">{{ $auditTotal24h }}</p>
-                <p class="text-4xs text-gray-600 dark:text-dark-175 mt-1">User &amp; content actions</p>
+            <div class="lb-card">
+                <p class="lb-card__label lb-card__label--warn">Audit · 24h</p>
+                <p class="lb-card__value">{{ $auditTotal24h }}</p>
+                <p class="lb-card__meta">User &amp; content actions</p>
             </div>
         </div>
     </section>
 
-    <section class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <section class="lb-panel-grid">
         @if(! empty($userActivity))
-            <div class="bg-gray-200 dark:bg-dark-800 rounded-xl border border-gray-400 dark:border-dark-900 p-5">
-                <p class="text-4xs uppercase tracking-widest text-gray-600 dark:text-dark-175 font-semibold mb-4">Team activity · 7d</p>
-                <div class="space-y-3">
+            <div class="lb-panel">
+                <p class="lb-panel__label">Team activity · 7d</p>
+                <div class="lb-user-list">
                     @foreach($userActivity as $u)
                         @php
                             $email = $u['email'] ?: ('User '.$u['user_id']);
                             $initial = mb_strtoupper(mb_substr($email, 0, 1));
                         @endphp
-                        <div class="flex items-center gap-3 bg-gray-100 dark:bg-dark-650 rounded-lg border border-gray-400 dark:border-dark-900 px-4 py-3">
-                            <div class="icon-header-avatar shrink-0">
-                                <div class="icon-user-initials">{{ $initial }}</div>
-                            </div>
-                            <div class="min-w-0">
-                                <p class="text-sm font-medium text-gray-900 dark:text-dark-100 truncate">{{ $email }}</p>
-                                <p class="text-4xs text-gray-600 dark:text-dark-175">
-                                    Last activity {{ $u['last_at']->diffForHumans() }} · <span class="font-semibold text-gray-800 dark:text-dark-150">{{ $u['actions'] }} actions</span>
+                        <div class="lb-user-row">
+                            <div class="lb-avatar">{{ $initial }}</div>
+                            <div class="lb-user-meta">
+                                <p class="lb-user-email">{{ $email }}</p>
+                                <p class="lb-user-sub">
+                                    Last activity {{ $u['last_at']->diffForHumans() }} ·
+                                    <strong>{{ $u['actions'] }} actions</strong>
                                 </p>
                             </div>
                         </div>
@@ -68,17 +77,19 @@
                 </div>
             </div>
         @else
-            <div class="bg-gray-200 dark:bg-dark-800 rounded-xl border border-gray-400 dark:border-dark-900 p-5 text-sm text-gray-600 dark:text-dark-175">No team audit activity in range.</div>
+            <div class="lb-panel">
+                <p class="lb-panel__empty">No team audit activity in range.</p>
+            </div>
         @endif
 
-        <div class="bg-gray-200 dark:bg-dark-800 rounded-xl border border-gray-400 dark:border-dark-900 p-5">
-            <p class="text-4xs uppercase tracking-widest text-gray-600 dark:text-dark-175 font-semibold mb-4">Top audit action · 7d</p>
-            <div class="flex items-center justify-between bg-gray-100 dark:bg-dark-650 rounded-lg border border-gray-400 dark:border-dark-900 px-4 py-3">
+        <div class="lb-panel">
+            <p class="lb-panel__label">Top audit action · 7d</p>
+            <div class="lb-action-row">
                 <div>
-                    <p class="text-sm font-medium font-mono text-gray-900 dark:text-dark-100">{{ optional($topAction7d)->action ?? '—' }}</p>
-                    <p class="text-4xs text-gray-600 dark:text-dark-175">({{ optional($topAction7d)->c ?? 0 }})</p>
+                    <p class="lb-action-row__name">{{ optional($topAction7d)->action ?? '—' }}</p>
+                    <p class="lb-action-row__count">({{ optional($topAction7d)->c ?? 0 }})</p>
                 </div>
-                <a href="{{ cp_route('utilities.logbook.audit') }}" class="text-4xs text-gray-600 dark:text-dark-175 hover:text-gray-800 dark:hover:text-dark-100 transition flex items-center gap-1">
+                <a href="{{ cp_route('utilities.logbook.audit') }}" class="lb-action-row__link">
                     Audit log <span>→</span>
                 </a>
             </div>

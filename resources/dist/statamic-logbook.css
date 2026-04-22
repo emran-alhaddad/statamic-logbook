@@ -1,0 +1,292 @@
+/*!
+ * Statamic Logbook — Control Panel styles
+ * ----------------------------------------------------------
+ * Self-contained stylesheet registered via $stylesheets on
+ * LogbookServiceProvider and auto-injected by Statamic into
+ * the CP <head>.
+ *
+ * Why this exists
+ * ---------------
+ * Statamic's CP compiles its own Tailwind bundle with
+ *     content: ['./resources/**\/*.{html,js,vue,blade.php}', …]
+ * which scans CP source paths only. Addon Blade templates are
+ * not in those scan paths, so any utility class we reference
+ * from our widget / utility views is subject to JIT purging in
+ * the host CP's compiled CSS. On Statamic 6 this removed many
+ * of the classes our widgets depended on: text-4xs, text-3xl,
+ * tracking-widest, bg-dark-*, dark:*, bg-orange, pill-tab,
+ * icon-header-avatar, subhead, p-5, etc.
+ *
+ * Rather than chase a moving set of classes across major
+ * releases, we ship our own small, hand-authored stylesheet
+ * with an "lb-" namespace. All layout decisions that were
+ * previously expressed via Tailwind utilities in Blade are
+ * now expressed as component classes here.
+ *
+ * Selector rules
+ * --------------
+ * - Every class is prefixed `lb-` so we never collide with CP,
+ *   Tailwind, or other addons.
+ * - Light-mode declarations live on the base class.
+ * - Dark-mode overrides use Statamic's `darkMode: 'class'`
+ *   convention: `.dark .lb-*`.
+ * - We intentionally do not redefine any Tailwind utilities
+ *   (`.bg-red-500`, `.text-xs`, etc.) — we continue to use the
+ *   ones the CP CSS ships natively, and only add component
+ *   classes for the gaps.
+ *
+ * Do not add arbitrary color tokens here. Match the CP's
+ * palette (see vendor/statamic/cms/tailwind.config.js) so
+ * visual density stays consistent.
+ */
+
+/* ---------- generic layout helpers ---------- */
+
+.lb-stack { display: flex; flex-direction: column; gap: 2rem; }
+
+.lb-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 0.25rem; }
+.lb-header__kicker { font-size: 11px; color: #73808c; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 600; margin: 0 0 0.25rem; }
+.lb-header__title { font-size: 16px; font-weight: 600; color: #19292f; margin: 0; line-height: 1.2; }
+.lb-header__meta { font-size: 10px; color: #73808c; margin: 0.25rem 0 0; }
+.lb-header__link { font-size: 13px; color: #73808c; display: inline-flex; align-items: center; gap: 0.25rem; text-decoration: none; transition: color 0.15s; }
+.lb-header__link:hover { color: #354248; }
+
+.dark .lb-header__title { color: #dfe1e5; }
+.dark .lb-header__kicker,
+.dark .lb-header__meta,
+.dark .lb-header__link { color: #93979a; }
+.dark .lb-header__link:hover { color: #dfe1e5; }
+
+/* ---------- cards ---------- */
+
+.lb-cards { display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem; margin-bottom: 1rem; }
+@media (min-width: 768px) {
+    .lb-cards { flex-direction: row; }
+    .lb-cards > * { flex: 1 1 0%; }
+}
+
+.lb-card {
+    background: #f5f8fc;
+    border: 1px solid #dde3e9;
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+    position: relative;
+}
+.lb-card--danger { border-color: rgba(239, 68, 68, 0.35); }
+
+.lb-card__label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: #73808c; font-weight: 600; margin: 0 0 0.75rem; }
+.lb-card__label--danger { color: #ef4444; }
+.lb-card__label--warn { color: #f5a82f; }
+
+.lb-card__value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; color: #19292f; margin: 0; line-height: 1.1; }
+.lb-card__meta { font-size: 10px; color: #73808c; margin: 0.35rem 0 0; }
+.lb-card__meta--danger { color: #ef4444; }
+
+.lb-card__badge {
+    display: inline-flex; align-items: center;
+    padding: 0.125rem 0.5rem; border-radius: 9999px;
+    font-size: 10px; font-weight: 600; margin-bottom: 0.5rem;
+}
+.lb-card__badge--danger { background: #ef4444; color: #fff; }
+.lb-card__badge--ok {
+    position: absolute; top: 1rem; right: 1rem;
+    background: #eef2f6; color: #354248;
+}
+
+.dark .lb-card { background: #1e1f22; border-color: #171717; }
+.dark .lb-card--danger { border-color: rgba(239, 68, 68, 0.35); }
+.dark .lb-card__value { color: #dfe1e5; }
+.dark .lb-card__label,
+.dark .lb-card__meta { color: #93979a; }
+.dark .lb-card__badge--ok { background: #242628; color: #bbbdc0; }
+
+/* ---------- sub-panels (team activity, top action, etc.) ---------- */
+
+.lb-panel-grid { display: grid; gap: 1rem; grid-template-columns: 1fr; }
+@media (min-width: 768px) { .lb-panel-grid { grid-template-columns: 1fr 1fr; } }
+
+.lb-panel {
+    background: #f5f8fc;
+    border: 1px solid #dde3e9;
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+}
+.lb-panel__label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: #73808c; font-weight: 600; margin: 0 0 1rem; }
+.lb-panel__empty { font-size: 13px; color: #73808c; }
+
+.dark .lb-panel { background: #1e1f22; border-color: #171717; }
+.dark .lb-panel__label,
+.dark .lb-panel__empty { color: #93979a; }
+
+.lb-user-list { display: flex; flex-direction: column; gap: 0.75rem; }
+.lb-user-row {
+    display: flex; align-items: center; gap: 0.75rem;
+    background: #eef2f6; border: 1px solid #dde3e9;
+    border-radius: 0.5rem; padding: 0.75rem 1rem;
+}
+.lb-avatar {
+    width: 2rem; height: 2rem; border-radius: 9999px;
+    background: #43a9ff; color: #fff; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; font-size: 12px; line-height: 1;
+}
+.lb-user-meta { min-width: 0; }
+.lb-user-email { font-size: 13px; font-weight: 500; color: #19292f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; }
+.lb-user-sub { font-size: 10px; color: #73808c; margin: 0.15rem 0 0; }
+.lb-user-sub strong { color: #354248; font-weight: 600; }
+
+.dark .lb-user-row { background: #242628; border-color: #171717; }
+.dark .lb-user-email { color: #dfe1e5; }
+.dark .lb-user-sub { color: #93979a; }
+.dark .lb-user-sub strong { color: #dfe1e5; }
+
+.lb-action-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+    background: #eef2f6; border: 1px solid #dde3e9;
+    border-radius: 0.5rem; padding: 0.75rem 1rem;
+}
+.lb-action-row__name { font-size: 13px; font-weight: 500; font-family: Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; color: #19292f; margin: 0; }
+.lb-action-row__count { font-size: 10px; color: #73808c; margin: 0.15rem 0 0; }
+.lb-action-row__link { font-size: 10px; color: #73808c; display: inline-flex; align-items: center; gap: 0.25rem; text-decoration: none; transition: color 0.15s; white-space: nowrap; }
+.lb-action-row__link:hover { color: #354248; }
+
+.dark .lb-action-row { background: #242628; border-color: #171717; }
+.dark .lb-action-row__name { color: #dfe1e5; }
+.dark .lb-action-row__count,
+.dark .lb-action-row__link { color: #93979a; }
+.dark .lb-action-row__link:hover { color: #dfe1e5; }
+
+/* ---------- pulse widget ---------- */
+
+.lb-pulse-filters { display: flex; gap: 0.5rem; margin: 0.75rem 0 1rem; flex-wrap: wrap; }
+.lb-pill {
+    display: inline-flex; align-items: center;
+    padding: 0.3rem 0.75rem; border-radius: 9999px;
+    font-size: 12px; font-weight: 500;
+    background: #eef2f6; color: #354248; border: 1px solid #dde3e9;
+    cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s;
+    font-family: inherit;
+}
+.lb-pill:hover { background: #dde3e9; }
+.lb-pill.lb-pill--active { background: #43a9ff; color: #fff; border-color: #43a9ff; }
+.lb-pill.lb-pill--active:hover { background: #298fe6; border-color: #298fe6; }
+
+.dark .lb-pill { background: #242628; color: #dfe1e5; border-color: #171717; }
+.dark .lb-pill:hover { background: #2b2d30; }
+.dark .lb-pill.lb-pill--active { background: #43a9ff; color: #fff; border-color: #43a9ff; }
+
+.lb-feed {
+    background: #f5f8fc;
+    border: 1px solid #dde3e9;
+    border-radius: 0.75rem;
+    overflow: hidden;
+}
+.lb-feed__row {
+    padding: 0.75rem 1rem;
+    transition: background 0.15s;
+}
+.lb-feed__row + .lb-feed__row { border-top: 1px solid #dde3e9; }
+.lb-feed__row:hover { background: #eef2f6; }
+.lb-feed__row.lb-hidden { display: none; }
+
+.lb-feed__inner { display: flex; align-items: flex-start; gap: 0.75rem; }
+
+.lb-tag {
+    flex-shrink: 0; margin-top: 0.15rem;
+    display: inline-flex; align-items: center;
+    padding: 0.125rem 0.5rem; border-radius: 0.25rem;
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.lb-tag--audit { background: #eef2f6; color: #354248; }
+.lb-tag--system { background: #fee2e2; color: #991b1b; }
+
+.lb-feed__body { flex: 1 1 auto; min-width: 0; }
+.lb-feed__time { font-size: 10px; color: #73808c; }
+.lb-feed__label { font-size: 13px; font-weight: 500; color: #19292f; margin: 0.15rem 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lb-feed__sub { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.25rem; font-size: 10px; color: #73808c; }
+.lb-feed__sub--mono { font-family: Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+.lb-feed__level--error { color: #ef4444; font-weight: 600; }
+.lb-feed__level--debug { color: #f5a82f; font-weight: 600; }
+.lb-feed__empty { padding: 1.5rem 1rem; text-align: center; font-size: 13px; color: #73808c; }
+
+.dark .lb-feed { background: #1e1f22; border-color: #171717; }
+.dark .lb-feed__row + .lb-feed__row { border-top-color: #171717; }
+.dark .lb-feed__row:hover { background: #242628; }
+.dark .lb-feed__label { color: #dfe1e5; }
+.dark .lb-feed__time,
+.dark .lb-feed__sub,
+.dark .lb-feed__empty { color: #93979a; }
+.dark .lb-tag--audit { background: #242628; color: #dfe1e5; }
+.dark .lb-tag--system { background: rgba(239,68,68,0.2); color: #f87171; }
+
+/* ---------- trends widget ---------- */
+
+.lb-chart {
+    background: #f5f8fc;
+    border: 1px solid #dde3e9;
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+}
+.lb-legend { display: flex; justify-content: flex-end; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.lb-legend__chip { font-size: 10px; color: #fff; padding: 0.25rem 0.6rem; border-radius: 9999px; }
+.lb-legend__chip--errors { background: #ef4444; }
+.lb-legend__chip--system { background: #43a9ff; }
+.lb-legend__chip--audit { background: #f5a82f; }
+
+.lb-bars { display: grid; align-items: end; gap: 0.75rem; height: 9rem; }
+.lb-bar { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; }
+.lb-bar__shell { width: 100%; display: flex; flex-direction: column; justify-content: flex-end; height: 100px; }
+.lb-bar__stack { width: 100%; border-radius: 0.375rem 0.375rem 0 0; overflow: hidden; display: flex; flex-direction: column-reverse; }
+.lb-bar__seg { width: 100%; }
+.lb-bar__seg--errors { background: #ef4444; }
+.lb-bar__seg--system { background: #43a9ff; }
+.lb-bar__seg--audit { background: #f5a82f; }
+.lb-bar__zero { width: 100%; background: #c4ccd4; border-radius: 0.375rem 0.375rem 0 0; height: 4px; }
+.lb-bar__label { font-size: 10px; color: #73808c; font-weight: 500; }
+.lb-bar__nums { font-size: 10px; color: #a7b3be; font-variant-numeric: tabular-nums; }
+
+.lb-chart__footer { display: flex; justify-content: flex-end; margin-top: 0.75rem; }
+
+.dark .lb-chart { background: #1e1f22; border-color: #171717; }
+.dark .lb-bar__label { color: #93979a; }
+.dark .lb-bar__nums { color: #5f6163; }
+.dark .lb-bar__zero { background: #414245; }
+
+/* ---------- safe "hidden" (Tailwind ships its own, but be defensive) ---------- */
+
+.lb-hidden { display: none !important; }
+
+/* ---------- level & action badges (system/audit utility pages) ---------- */
+
+.lb-badge {
+    display: inline-block;
+    padding: 0.15rem 0.55rem;
+    border-radius: 9999px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+/* System log levels */
+.lb-badge--error { background: #b91c1c; color: #fff; }
+.lb-badge--warn  { background: #f5a82f; color: #19292f; }
+.lb-badge--info  { background: #43a9ff; color: #fff; }
+.lb-badge--debug { background: #73808c; color: #fff; }
+.lb-badge--muted { background: #dde3e9; color: #19292f; }
+
+/* Audit action classes */
+.lb-badge--delete { background: #b91c1c; color: #fff; }
+.lb-badge--create { background: #43a9ff; color: #fff; }
+.lb-badge--update { background: #43a9ff; color: #fff; }
+
+.dark .lb-badge--muted { background: #3b3f41; color: #dfe1e5; }
+.dark .lb-badge--warn  { background: #f5a82f; color: #19292f; }
+
+/* ---------- narrow form helpers (arbitrary widths) ---------- */
+
+.lb-field-sm { width: 10rem; }
+.lb-field-md { width: 14rem; }
+.lb-message-cell { max-width: 720px; }
+

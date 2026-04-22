@@ -17,6 +17,14 @@ dedicated `1.x` LTS branch.
 
 * **Statamic 6 support.** The addon now boots cleanly on Statamic 6 without
   clobbering the core `statamic.widgets` extension binding.
+* **Self-contained CP stylesheet.** `resources/dist/statamic-logbook.css`
+  is now registered via `$stylesheets` on `LogbookServiceProvider` and
+  auto-injected into the CP `<head>` by Statamic. All widget and utility
+  view styles (cards, feed rows, pill filters, stacked bar chart, level/
+  action badges) are now addon-owned under the `lb-*` namespace and no
+  longer depend on Tailwind utilities that the host CP's JIT build may
+  have purged. Run `php artisan vendor:publish --tag=logbook` after
+  install (Statamic auto-runs this on `statamic:install`).
 * **`Audit\EventMap`**: a per-major curated event registry (majors 3–6) that
   resolves the running Statamic major from `Statamic::version()` or
   `vendor/composer/installed.json` and returns only the event classes that
@@ -91,6 +99,19 @@ dedicated `1.x` LTS branch.
   `\Statamic\Entries\Entry` at the top of the file, which previously forced
   autoload of a class that may not exist in every supported major. The
   check is now `class_exists()`-gated with a duck-typed fallback.
+* **Unstyled CP widgets on Statamic 6.** The dashboard widgets and utility
+  pages previously rendered as unstyled gray boxes on Statamic 6 because
+  the CP Tailwind JIT build scans only CP source paths for utility class
+  usage and purged everything our addon views referenced from that
+  compilation — including `text-4xs`, `text-3xl`, `tracking-widest`,
+  `bg-dark-*`, every `dark:*` variant, `bg-orange`, `text-blue`, the
+  `subhead` / `icon-header-avatar` / `pill-tab` CP components, arbitrary
+  widths like `w-40` / `max-w-[720px]`, and `shadow-2xl` / `backdrop-blur`.
+  All widget and utility templates have been rewritten against an
+  addon-owned `lb-*` stylesheet shipped via `$stylesheets` so rendering is
+  now independent of the host CP's compiled Tailwind surface. This fixes
+  rendering on Statamic 6 and hardens us against future CP Tailwind
+  config changes on 4 / 5.
 
 ### Removed
 
