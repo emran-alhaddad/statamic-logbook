@@ -1,35 +1,64 @@
 <?php
 
+declare(strict_types=1);
+
 namespace EmranAlhaddad\StatamicLogbook;
 
-use Illuminate\Console\Scheduling\Schedule;
-use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Event;
-use Illuminate\Log\Events\MessageLogged;
-use Monolog\Level;
-use Statamic\Facades\Utility;
-use Statamic\Facades\Permission;
-use Statamic\Providers\AddonServiceProvider;
-use Statamic\Widgets\Widget;
-
-use EmranAlhaddad\StatamicLogbook\Console\InstallCommand;
-use EmranAlhaddad\StatamicLogbook\Console\PruneCommand;
-use EmranAlhaddad\StatamicLogbook\Console\FlushSpoolCommand;
-use EmranAlhaddad\StatamicLogbook\Http\Controllers\LogbookUtilityController;
-use EmranAlhaddad\StatamicLogbook\Http\Middleware\LogbookRequestContext;
 use EmranAlhaddad\StatamicLogbook\Audit\AuditRecorder;
 use EmranAlhaddad\StatamicLogbook\Audit\ChangeDetector;
 use EmranAlhaddad\StatamicLogbook\Audit\StatamicAuditSubscriber;
+use EmranAlhaddad\StatamicLogbook\Console\FlushSpoolCommand;
+use EmranAlhaddad\StatamicLogbook\Console\InstallCommand;
+use EmranAlhaddad\StatamicLogbook\Console\PruneCommand;
+use EmranAlhaddad\StatamicLogbook\Http\Controllers\LogbookUtilityController;
+use EmranAlhaddad\StatamicLogbook\Http\Middleware\LogbookRequestContext;
 use EmranAlhaddad\StatamicLogbook\SystemLogs\DbSystemLogHandler;
 use EmranAlhaddad\StatamicLogbook\Widgets\LogbookPulseWidget;
 use EmranAlhaddad\StatamicLogbook\Widgets\LogbookStatsWidget;
 use EmranAlhaddad\StatamicLogbook\Widgets\LogbookTrendsWidget;
+use EmranAlhaddad\StatamicLogbook\Widgets\Registry\WidgetRegistryShim;
+use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Log\Events\MessageLogged;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Route;
+use Monolog\Level;
+use Statamic\Facades\Permission;
+use Statamic\Facades\Utility;
+use Statamic\Providers\AddonServiceProvider;
+use Statamic\Statamic;
+use Statamic\Widgets\Widget;
 
+/**
+ * Service provider for the Statamic Logbook addon.
+ *
+ * Compatibility
+ * -------------
+ * - Statamic 4, 5, 6 (this branch).
+ * - Statamic 3 is supported on the dedicated `1.x` LTS branch.
+ *
+ * Design notes
+ * ------------
+ * - The historical eager rebind of `app('statamic.widgets')` has been
+ *   replaced by the capability-gated {@see WidgetRegistryShim} which
+ *   runs after Statamic's booted callbacks and only acts when the
+ *   core binding is missing our handles. This keeps Statamic 6 happy
+ *   (it binds `statamic.widgets` natively via
+ *   {@see \Statamic\Providers\ExtensionServiceProvider}) while still
+ *   covering the Statamic 5 widget-registration quirk that required
+ *   the original workaround.
+ *
+ * - Boot logic lives in {@see bootAddon()} (the Statamic-preferred
+ *   hook) so it runs after core has finished priming the extensions
+ *   container.
+ *
+ * - The class never holds per-process "already booted" flags; we rely
+ *   on container singletons and `Event::hasListeners(...)` where
+ *   idempotency matters.
+ */
 class LogbookServiceProvider extends AddonServiceProvider
 {
     /**
-     * Required for {@see AddonServiceProvider::bootWidgets()} to call
-     * {@see Widget::register()} on each class.
+     * Widget classes the parent bootWidgets() will iterate and register.
      *
      * @var list<class-string<Widget>>
      */
@@ -38,9 +67,6 @@ class LogbookServiceProvider extends AddonServiceProvider
         LogbookTrendsWidget::class,
         LogbookPulseWidget::class,
     ];
-
-    protected static bool $booted = false;
-    protected static bool $systemLogsHooked = false;
 
     public function register(): void
     {
@@ -52,107 +78,14 @@ class LogbookServiceProvider extends AddonServiceProvider
         $this->app->singleton(ChangeDetector::class);
     }
 
-    public function boot(): void
-    {
-        parent::boot();
-        $this->bootLogbook();
-        $this->registerMergedStatamicWidgetsBinding();
-    }
-
     /**
-     * Statamic's {@see \Statamic\Widgets\Loader} reads `app('statamic.widgets')`, which is
-     * bound to `statamic.extensions[Widget::class]`. Core only registers concrete widget
-     * classes; the abstract map must contain handle → class. Rebind lazily so this runs
-     * after {@see \Statamic\Statamic::runBootedCallbacks()} (when subclasses are registered).
+     * Statamic calls this after {@see Statamic::booted()} has fired, at
+     * which point the CP extensions container is fully populated. This
+     * is the right hook for permissions, CP utilities, widget-registry
+     * shimming, and the system-log listener.
      */
-    protected function registerMergedStatamicWidgetsBinding(): void
+    public function bootAddon(): void
     {
-        $this->app->bind('statamic.widgets', function ($app) {
-            $abstract = Widget::class;
-
-            if (! $app->bound('statamic.extensions')) {
-                return collect();
-            }
-
-            $extensions = $app['statamic.extensions'];
-            if (! $extensions instanceof \Illuminate\Support\Collection) {
-                return collect();
-            }
-
-            $merged = $this->normalizeWidgetRegistry($extensions[$abstract] ?? collect(), $abstract);
-
-            foreach ($extensions as $class => $bindings) {
-                if (! is_string($class) || ! class_exists($class)) {
-                    continue;
-                }
-                if ($class === $abstract || ! is_subclass_of($class, $abstract)) {
-                    continue;
-                }
-                if (! $bindings instanceof \Illuminate\Support\Collection) {
-                    continue;
-                }
-                $merged = $merged->merge($this->normalizeWidgetRegistry($bindings, $abstract));
-            }
-
-            foreach ([
-                LogbookStatsWidget::class,
-                LogbookTrendsWidget::class,
-                LogbookPulseWidget::class,
-            ] as $widgetClass) {
-                if ($merged->has($widgetClass::handle())) {
-                    continue;
-                }
-                $widgetClass::register();
-                $map = $extensions[$widgetClass] ?? null;
-                if ($map instanceof \Illuminate\Support\Collection) {
-                    $merged = $merged->merge($this->normalizeWidgetRegistry($map, $abstract));
-                } else {
-                    $merged->put($widgetClass::handle(), $widgetClass);
-                }
-            }
-
-            return $merged;
-        });
-    }
-
-    /**
-     * Keep only valid widget registry pairs: handle => widget class-string.
-     *
-     * Statamic extensions collections may include other payload types (for example
-     * dashboard widget config arrays). Those must never leak into app('statamic.widgets').
-     *
-     * @param  \Illuminate\Support\Collection|array<mixed>  $registry
-     * @return \Illuminate\Support\Collection<string, class-string<Widget>>
-     */
-    protected function normalizeWidgetRegistry(\Illuminate\Support\Collection|array $registry, string $abstract): \Illuminate\Support\Collection
-    {
-        $source = $registry instanceof \Illuminate\Support\Collection ? $registry : collect($registry);
-        $normalized = collect();
-
-        foreach ($source as $key => $value) {
-            $class = null;
-
-            if (is_string($value) && class_exists($value) && is_subclass_of($value, $abstract)) {
-                $class = $value;
-            } elseif (is_string($key) && class_exists($key) && is_subclass_of($key, $abstract)) {
-                $class = $key;
-            }
-
-            if ($class !== null) {
-                $normalized->put($class::handle(), $class);
-            }
-        }
-
-        return $normalized;
-    }
-
-    protected function bootLogbook(): void
-    {
-        if (self::$booted) {
-            return;
-        }
-        self::$booted = true;
-
         $this->loadViewsFrom(__DIR__ . '/../resources/views', 'statamic-logbook');
 
         $this->publishes([
@@ -166,18 +99,54 @@ class LogbookServiceProvider extends AddonServiceProvider
         ]);
 
         $this->registerCpMiddleware();
-
-        if (config('logbook.audit_logs.enabled', true) && class_exists(\Statamic\Statamic::class)) {
-            (new StatamicAuditSubscriber(
-                recorder: $this->app->make(AuditRecorder::class),
-                detector: $this->app->make(ChangeDetector::class),
-            ))->subscribe();
-        }
-
+        $this->registerAuditSubscriber();
         $this->registerSystemLogs();
         $this->registerAddonScheduler();
         $this->registerPermissions();
         $this->bootCpUtility();
+        $this->applyWidgetRegistryShimIfNeeded();
+    }
+
+    /**
+     * Apply the widget registry shim only when the core binding does
+     * not already have the Logbook handles. On Statamic 6 this is
+     * expected to be a no-op; on Statamic 5 it covers the historical
+     * registration quirk.
+     *
+     * Wrapped in Statamic::booted so it runs after core's own widget
+     * registration has completed.
+     */
+    protected function applyWidgetRegistryShimIfNeeded(): void
+    {
+        if (! class_exists(Statamic::class)) {
+            return;
+        }
+
+        Statamic::booted(function (): void {
+            try {
+                (new WidgetRegistryShim($this->app, $this->widgets))->applyIfNeeded();
+            } catch (\Throwable $e) {
+                // Shim is strictly a back-compat safety net. If it fails, the
+                // addon must still boot — widgets will use whatever the host
+                // already has registered.
+            }
+        });
+    }
+
+    protected function registerAuditSubscriber(): void
+    {
+        if (! (bool) config('logbook.audit_logs.enabled', true)) {
+            return;
+        }
+
+        if (! class_exists(Statamic::class)) {
+            return;
+        }
+
+        (new StatamicAuditSubscriber(
+            recorder: $this->app->make(AuditRecorder::class),
+            detector: $this->app->make(ChangeDetector::class),
+        ))->subscribe();
     }
 
     protected function registerAddonScheduler(): void
@@ -199,6 +168,7 @@ class LogbookServiceProvider extends AddonServiceProvider
             $event->everyMinute()->when(function () use ($everyMinutes): bool {
                 $now = now();
                 $minuteOfDay = (int) $now->format('G') * 60 + (int) $now->format('i');
+
                 return $minuteOfDay % $everyMinutes === 0;
             });
 
@@ -210,22 +180,31 @@ class LogbookServiceProvider extends AddonServiceProvider
 
     protected function registerSystemLogs(): void
     {
-        if (self::$systemLogsHooked || !config('logbook.system_logs.enabled', true)) {
+        if (! (bool) config('logbook.system_logs.enabled', true)) {
             return;
         }
 
-        self::$systemLogsHooked = true;
+        // Idempotent: if the listener for MessageLogged already includes a
+        // closure bearing our marker, skip re-registering. We use a simple
+        // attribute-bag flag on the container rather than a static class
+        // variable — containers are re-built between test requests, static
+        // state is not.
+        $flag = 'logbook.system_logs_hooked';
+        if ($this->app->bound($flag) && $this->app->make($flag) === true) {
+            return;
+        }
+        $this->app->instance($flag, true);
 
         $levelName = (string) config('logbook.system_logs.level', 'debug');
         $bubble = (bool) config('logbook.system_logs.bubble', true);
 
         try {
             $level = Level::fromName($levelName);
-        } catch (\Throwable $e) {
+        } catch (\Throwable) {
             $level = Level::Debug;
         }
 
-        Event::listen(MessageLogged::class, function (MessageLogged $event) use ($level, $bubble) {
+        Event::listen(MessageLogged::class, function (MessageLogged $event) use ($level, $bubble): void {
             if ($this->shouldSkipSystemLogEvent($event)) {
                 return;
             }
@@ -273,24 +252,27 @@ class LogbookServiceProvider extends AddonServiceProvider
 
     protected function registerCpMiddleware(): void
     {
-        if (!class_exists(LogbookRequestContext::class)) return;
+        if (! class_exists(LogbookRequestContext::class)) {
+            return;
+        }
 
         try {
             Route::pushMiddlewareToGroup('statamic.cp', LogbookRequestContext::class);
-        } catch (\Throwable $e) {
+        } catch (\Throwable) {
+            // Middleware group may not exist yet in some test kernels.
         }
     }
 
     protected function bootCpUtility(): void
     {
-        Utility::extend(function () {
+        Utility::extend(function (): void {
             Utility::register('logbook')
                 ->title('Logbook')
                 ->navTitle('Logbook')
                 ->description('System logs + user audit logs')
                 ->icon($this->svgIcon('logbook'))
                 ->action(LogbookUtilityController::class)
-                ->routes(function ($router) {
+                ->routes(function ($router): void {
                     $router->get('/system', [LogbookUtilityController::class, 'system'])
                         ->name('system')
                         ->middleware('can:view logbook');
@@ -318,10 +300,10 @@ class LogbookServiceProvider extends AddonServiceProvider
         });
     }
 
-
     protected function svgIcon(string $name): string
     {
         $path = __DIR__ . '/../resources/svg/' . $name . '.svg';
-        return file_exists($path) ? file_get_contents($path) : '';
+
+        return file_exists($path) ? (string) file_get_contents($path) : '';
     }
 }
