@@ -761,6 +761,61 @@
     });
 
     // ------------------------------------------------------
+    // 6d. Filter pills — visual toggle + auto-submit on change
+    // ------------------------------------------------------
+    // The Timeline view (and any future pages using the same idiom)
+    // renders severity / type filters as:
+    //
+    //   <label class="lb-pill ...">
+    //     <input type="checkbox" name="sev[]" value="error"> Errors
+    //   </label>
+    //
+    // with the checkbox itself hidden via CSS and the label acting as
+    // the clickable surface. Native label semantics toggle the nested
+    // checkbox on click — we just need to:
+    //
+    //   1. Toggle the `.lb-pill--active` class on the label so the
+    //      user gets immediate visual feedback (otherwise they'd have
+    //      to wait for the server round-trip to see their choice land).
+    //   2. Submit the enclosing `data-lb-filter-form` so the filter
+    //      applies without a separate Apply click.
+    //
+    // Any element using `<label class="lb-pill"><input type="checkbox">`
+    // inside a `data-lb-filter-form` automatically gets this behaviour;
+    // no per-pill opt-in attribute is required.
+    var lbPillSubmitTimer = null;
+    document.addEventListener('change', function (e) {
+        var input = e.target;
+        if (!input || !input.matches) return;
+        if (!input.matches('input[type="checkbox"]')) return;
+
+        var label = input.closest('label.lb-pill');
+        if (!label) return;
+
+        // 1. Immediate visual feedback.
+        label.classList.toggle('lb-pill--active', input.checked);
+
+        // 2. Auto-submit — only if the pill lives inside a filter form.
+        var form = input.closest('form[data-lb-filter-form]');
+        if (!form) return;
+
+        // Debounce rapid toggles (e.g. quickly clicking several pills)
+        // so we submit once after the last change lands. 80ms is below
+        // human click cadence but above any event-loop jitter.
+        if (lbPillSubmitTimer) {
+            clearTimeout(lbPillSubmitTimer);
+        }
+        lbPillSubmitTimer = setTimeout(function () {
+            lbPillSubmitTimer = null;
+            if (typeof form.requestSubmit === 'function') {
+                form.requestSubmit();
+            } else {
+                form.submit();
+            }
+        }, 80);
+    });
+
+    // ------------------------------------------------------
     // 7. Utility page: keyboard shortcuts
     // ------------------------------------------------------
     // `/`      → focus primary filter search input on the page

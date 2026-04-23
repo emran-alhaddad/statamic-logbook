@@ -515,7 +515,12 @@ class LogbookDashboardData
         }
 
         $at = Carbon::parse($row);
-        $diffMinutes = max(0, $at->diffInMinutes(now()));
+        // Carbon 3 (Laravel 11+) returns a float here; Carbon 2 returns an int.
+        // humaniseMinutes() is typed `int`, so without the cast PHP 8.3+ emits
+        // an "Implicit conversion from float to int loses precision" warning
+        // every time the widget renders — which, ironically, gets recorded as
+        // a warning row in our own logbook.
+        $diffMinutes = (int) max(0, $at->diffInMinutes(now()));
 
         return [
             'at' => $at,

@@ -1,10 +1,10 @@
 {
   "name": "statamic-logbook",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Build harness for the Statamic Logbook addon's CP stylesheet and script bundles.",
   "private": true,
   "scripts": {
-    "build:css": "clean-css-cli -O2 --output resources/dist/statamic-logbook.min.css resources/dist/statamic-logbook.css",
+    "build:css": "cleancss -O2 --output resources/dist/statamic-logbook.min.css resources/dist/statamic-logbook.css",
     "build:js": "terser resources/dist/statamic-logbook.js -c passes=2 -m --comments false -o resources/dist/statamic-logbook.min.js",
     "build": "npm run build:css && npm run build:js"
   },

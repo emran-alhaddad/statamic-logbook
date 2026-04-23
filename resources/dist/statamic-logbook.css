@@ -1869,6 +1869,38 @@ body > .lb-preset__menu { display: block; }
 }
 
 /* ============================================================
+   Dashboard widget permission gate
+   ============================================================
+   Each logbook dashboard widget (Overview, Trends, Pulse) checks
+   the current CP user's `view logbook` permission inside html()
+   and short-circuits to a marker element:
+
+       <div class="lb-widget-gated" hidden></div>
+
+   Statamic still wraps that marker in its standard dashboard
+   widget card (with title, surround, grid cell). These rules
+   use :has() to collapse every reasonable ancestor so the card
+   disappears entirely on the dashboard grid — no title leak,
+   no empty slot, no data.
+
+   :has() is supported by all evergreen browsers since 2023
+   (Chrome 105+, Safari 15.4+, Firefox 121+); the ruleset is
+   progressive-enhancement and safely ignored elsewhere.
+   ============================================================ */
+
+.lb-widget-gated { display: none !important; }
+
+.card:has(> .lb-widget-gated),
+.card:has(.lb-widget-gated),
+[data-widget-handle]:has(.lb-widget-gated),
+.dashboard-widget:has(.lb-widget-gated),
+.widget-logbook_stats:has(.lb-widget-gated),
+.widget-logbook_trends:has(.lb-widget-gated),
+.widget-logbook_pulse:has(.lb-widget-gated) {
+    display: none !important;
+}
+
+/* ============================================================
    Print
    ============================================================ */
 

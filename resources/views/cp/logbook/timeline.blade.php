@@ -30,30 +30,30 @@
 
 @section('panel')
 <div class="lb-box lb-box--flat" style="border: 0; border-radius: 0;">
-    <form method="GET" class="lb-filter lb-filter--sticky">
+    <form method="GET" class="lb-filter lb-filter--sticky" data-lb-filter-form>
         <div class="lb-filter__row">
             <input type="date" name="from" value="{{ $filters['from'] ?? '' }}" class="lb-input lb-field-sm" aria-label="From date">
             <input type="date" name="to"   value="{{ $filters['to'] ?? '' }}"   class="lb-input lb-field-sm" aria-label="To date">
 
             <label class="lb-pill {{ in_array('system', $typesChecked, true) ? 'lb-pill--active' : '' }}">
-                <input type="checkbox" name="types[]" value="system" {{ in_array('system', $typesChecked, true) ? 'checked' : '' }} style="display: none;">
+                <input type="checkbox" name="types[]" value="system" {{ in_array('system', $typesChecked, true) ? 'checked' : '' }} class="lb-sr-only">
                 System
             </label>
             <label class="lb-pill {{ in_array('audit', $typesChecked, true) ? 'lb-pill--active' : '' }}">
-                <input type="checkbox" name="types[]" value="audit" {{ in_array('audit', $typesChecked, true) ? 'checked' : '' }} style="display: none;">
+                <input type="checkbox" name="types[]" value="audit" {{ in_array('audit', $typesChecked, true) ? 'checked' : '' }} class="lb-sr-only">
                 Audit
             </label>
 
             <label class="lb-pill {{ in_array('error', $sevSelected, true) ? 'lb-pill--active' : '' }}">
-                <input type="checkbox" name="sev[]" value="error" {{ in_array('error', $sevSelected, true) ? 'checked' : '' }} style="display: none;">
+                <input type="checkbox" name="sev[]" value="error" {{ in_array('error', $sevSelected, true) ? 'checked' : '' }} class="lb-sr-only">
                 Errors
             </label>
             <label class="lb-pill {{ in_array('warn', $sevSelected, true) ? 'lb-pill--active' : '' }}">
-                <input type="checkbox" name="sev[]" value="warn" {{ in_array('warn', $sevSelected, true) ? 'checked' : '' }} style="display: none;">
+                <input type="checkbox" name="sev[]" value="warn" {{ in_array('warn', $sevSelected, true) ? 'checked' : '' }} class="lb-sr-only">
                 Warnings
             </label>
             <label class="lb-pill {{ in_array('info', $sevSelected, true) ? 'lb-pill--active' : '' }}">
-                <input type="checkbox" name="sev[]" value="info" {{ in_array('info', $sevSelected, true) ? 'checked' : '' }} style="display: none;">
+                <input type="checkbox" name="sev[]" value="info" {{ in_array('info', $sevSelected, true) ? 'checked' : '' }} class="lb-sr-only">
                 Info
             </label>
         </div>
@@ -107,7 +107,13 @@
                                         {{ strtoupper($it['label']) }}
                                     </span>
                                 @else
-                                    <span class="lb-chip lb-chip--update" style="margin-right: var(--lb-s-2);">
+                                    {{-- Audit rows carry the presenter-derived chip variant + humanised label
+                                         ("User updated", "Entry created", …). The raw event string
+                                         (e.g. statamic.user.updated) is kept in `actionRaw` and
+                                         surfaced as a tooltip for operators who prefer the machine name. --}}
+                                    <span class="lb-chip lb-chip--{{ $it['variant'] ?? 'update' }}"
+                                          style="margin-right: var(--lb-s-2);"
+                                          title="{{ $it['actionRaw'] ?? '' }}">
                                         <span class="lb-chip__dot" aria-hidden="true"></span>
                                         {{ $it['label'] }}
                                     </span>

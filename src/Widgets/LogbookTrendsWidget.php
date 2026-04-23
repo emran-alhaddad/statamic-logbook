@@ -12,6 +12,9 @@ class LogbookTrendsWidget extends Widget
 
     protected static $title = 'Logbook · 7-day volume';
 
+    /**
+     * Permission gate — see LogbookStatsWidget for rationale.
+     */
     public function canSee()
     {
         return auth()->user()?->can('view logbook') ?? false;
@@ -19,6 +22,13 @@ class LogbookTrendsWidget extends Widget
 
     public function html()
     {
+        // Permission gate. See LogbookStatsWidget::html() for the
+        // details on why this is inside html() and how the CSS hides
+        // the enclosing dashboard card via :has(.lb-widget-gated).
+        if (! $this->canSee()) {
+            return '<div class="lb-widget-gated" data-lb-widget-handle="'.static::$handle.'" aria-hidden="true" hidden></div>';
+        }
+
         try {
             $conn = DbConnectionResolver::resolve();
             $days = max(1, min(14, (int) $this->config('days', 7)));

@@ -13,6 +13,67 @@ _Nothing queued for the next release yet._
 
 ---
 
+## [2.0.1] — 2026-04-23
+
+Hotfix pass after v2.0.0 shipped — addresses the timeline filter pills,
+the raw audit event names leaking through the timeline chip, a
+float→int PHP 8.3 deprecation emitted by our own overview widget, and
+makes the dashboard widgets honour the `view logbook` permission.
+
+### Fixed
+
+* **Timeline severity / type filter pills (`System` / `Audit` /
+  `Errors` / `Warnings` / `Info`) didn't filter anything.** The pills
+  wrapped hidden `<input type="checkbox">` controls and relied on the
+  user clicking a separate **Apply** button after each change, which
+  most users (correctly) didn't realise was necessary. They now
+  auto-submit the filter form on change (80 ms debounce so rapid
+  multi-pill toggles coalesce into a single navigation) and toggle
+  the `.lb-pill--active` class immediately for instant visual
+  feedback. The checkbox is now visually hidden via `.lb-sr-only`
+  instead of `display: none`, keeping it interactive and
+  label-clickable across browsers. The form is tagged with
+  `data-lb-filter-form`, which also lets the shared empty-param
+  stripper keep the resulting URL clean.
+* **Timeline audit rows showed raw machine event names
+  (`statamic.user.updated`, `statamic.entry.created`, …) instead
+  of the humanised labels the Audit Logs page uses.** The timeline
+  controller now runs every audit row through
+  `AuditActionPresenter::label()` + `variant()` just like
+  `audit.blade.php` does, and appends the same
+  `changeSummary()` hint to the message line so updates read as
+  "Entry saved · title · 'Old' → 'New'". The raw event string
+  remains available as the chip's `title` tooltip so operators can
+  still grep by machine name (`?action=statamic.user.updated` on
+  the Audit page keeps working, unchanged).
+* **`Implicit conversion from float … to int loses precision in
+  LogbookDashboardData.php` warnings on every dashboard render
+  under PHP 8.3+.** `lastErrorAt()` fed the return value of
+  `Carbon::diffInMinutes()` (a float in Carbon 3 / Laravel 11+)
+  into the `int`-typed `humaniseMinutes()` helper, triggering the
+  deprecation — which then got recorded back into the logbook as
+  a warning row on every page view. The value is now explicitly
+  cast to `int` at the call site.
+
+### Security
+
+* **Dashboard widgets now honour the `view logbook` permission.**
+  `LogbookStatsWidget`, `LogbookTrendsWidget`, and
+  `LogbookPulseWidget` each declare `canSee()` returning
+  `auth()->user()?->can('view logbook')`, but the Statamic widget
+  pipeline doesn't invoke `canSee()` consistently across supported
+  majors. Each widget's `html()` now short-circuits to a marker
+  element (`<div class="lb-widget-gated" hidden>`) when the
+  current CP user lacks permission, and the shipped stylesheet
+  uses `:has(.lb-widget-gated)` selectors to collapse the
+  enclosing dashboard card so no title / surround leaks either.
+  Result: non-privileged CP users see no logbook data and no
+  evidence the addon is even installed on their dashboard, while
+  the utility routes remain gated by `can:view logbook` / `can:export logbook`
+  middleware as before.
+
+---
+
 ## [2.0.0] — 2026-04-22
 
 Adds first-class Statamic 6 support while keeping Statamic 4 and 5 working

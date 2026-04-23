@@ -12,6 +12,9 @@ class LogbookPulseWidget extends Widget
 
     protected static $title = 'Logbook · Live feed';
 
+    /**
+     * Permission gate — see LogbookStatsWidget for rationale.
+     */
     public function canSee()
     {
         return auth()->user()?->can('view logbook') ?? false;
@@ -19,6 +22,13 @@ class LogbookPulseWidget extends Widget
 
     public function html()
     {
+        // Permission gate. See LogbookStatsWidget::html() for the
+        // details on why this is inside html() and how the CSS hides
+        // the enclosing dashboard card via :has(.lb-widget-gated).
+        if (! $this->canSee()) {
+            return '<div class="lb-widget-gated" data-lb-widget-handle="'.static::$handle.'" aria-hidden="true" hidden></div>';
+        }
+
         try {
             $conn = DbConnectionResolver::resolve();
             $limit = max(4, min(40, (int) $this->config('limit', 12)));

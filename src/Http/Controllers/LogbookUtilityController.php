@@ -5,6 +5,7 @@ namespace EmranAlhaddad\StatamicLogbook\Http\Controllers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use EmranAlhaddad\StatamicLogbook\Support\AuditActionPresenter;
 use EmranAlhaddad\StatamicLogbook\Support\DbConnectionResolver;
 use EmranAlhaddad\StatamicLogbook\Support\UserPrefsRepository;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -200,15 +201,39 @@ class LogbookUtilityController
 
             foreach ($aud->orderByDesc('id')->limit($limit)->get() as $r) {
                 $action = (string) ($r->action ?? '');
+                // Run the raw event string through the same presenter the
+                // Audit Logs page uses so the Timeline displays
+                // "User updated" instead of `statamic.user.updated`,
+                // "Entry created" instead of `statamic.entry.created`,
+                // etc. The raw string is still exposed via `actionRaw`
+                // for the chip's tooltip so ops users can grep by
+                // machine name.
+                $humanLabel = AuditActionPresenter::label($action);
+                $variant    = AuditActionPresenter::variant($action);
+                $changeHint = AuditActionPresenter::changeSummary($r->changes ?? null);
+
+                // Prefer the subject title / handle for the row message;
+                // fall back to the humanised label when the audit row
+                // has no subject metadata (login / logout events).
+                $messageBase = (string) ($r->subject_title ?: $r->subject_handle ?: '');
+                if ($messageBase === '') {
+                    $messageBase = $humanLabel;
+                }
+                if ($changeHint !== null && $changeHint !== '') {
+                    $messageBase = trim($messageBase.' · '.$changeHint);
+                }
+
                 $items[] = [
-                    'id'       => 'aud-'.$r->id,
-                    'type'     => 'audit',
-                    'severity' => 'audit',
-                    'label'    => $action,
-                    'message'  => (string) ($r->subject_title ?: $r->subject_handle ?: $action),
-                    'meta'     => trim(($r->subject_type ?? '').' · '.($r->subject_handle ?? ''), ' ·'),
-                    'user'     => $r->user_email ?? $r->user_id ?? null,
-                    'at'       => \Carbon\Carbon::parse($r->created_at),
+                    'id'        => 'aud-'.$r->id,
+                    'type'      => 'audit',
+                    'severity'  => 'audit',
+                    'label'     => $humanLabel,
+                    'actionRaw' => $action,
+                    'variant'   => $variant,
+                    'message'   => $messageBase,
+                    'meta'      => trim(($r->subject_type ?? '').' · '.($r->subject_handle ?? ''), ' ·'),
+                    'user'      => $r->user_email ?? $r->user_id ?? null,
+                    'at'        => \Carbon\Carbon::parse($r->created_at),
                 ];
             }
         }
