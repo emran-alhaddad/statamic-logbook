@@ -1,7 +1,7 @@
 {
   "name": "emran-alhaddad/statamic-logbook",
   "description": "Statamic add-on for system logs and user audit logs stored in a database, with CP UI, analytics, and CSV export.",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "type": "statamic-addon",
   "license": "MIT",
   "keywords": [
@@ -14,12 +14,12 @@
   "require": {
     "php": "^8.1|^8.2|^8.3|^8.4",
     "statamic/cms": "^4.0|^5.0|^6.0",
-    "illuminate/support": "^9.0|^10.0|^11.0|^12.0",
-    "illuminate/database": "^9.0|^10.0|^11.0|^12.0",
+    "illuminate/support": "^9.0|^10.0|^11.0|^12.0|^13.0",
+    "illuminate/database": "^9.0|^10.0|^11.0|^12.0|^13.0",
     "monolog/monolog": "^3.0"
   },
   "require-dev": {
-    "orchestra/testbench": "^8.0|^9.0|^10.0",
+    "orchestra/testbench": "^8.0|^9.0|^10.0|^11.0",
     "phpunit/phpunit": "^10.0|^11.0"
   },
   "autoload": {

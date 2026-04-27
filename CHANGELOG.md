@@ -13,6 +13,36 @@ _Nothing queued for the next release yet._
 
 ---
 
+## [2.0.2] — 2026-04-27
+
+Compatibility hotfix. Laravel 13 was released this week (2026-04-21) and
+projects on the new framework couldn't install the addon — Composer
+rejected the resolution because our `illuminate/support` and
+`illuminate/database` constraints capped at `^12.0`. No code or behaviour
+changes; this release only widens the dependency constraints so the
+existing 2.0.1 codebase installs cleanly on Laravel 13 / Statamic 6.14+.
+
+### Changed
+
+* **`composer.json` — Laravel 13 added to the supported matrix.**
+  `illuminate/support` and `illuminate/database` constraints widened
+  from `^9.0|^10.0|^11.0|^12.0` to `^9.0|^10.0|^11.0|^12.0|^13.0`.
+  `orchestra/testbench` (dev) widened to also include `^11.0` so the
+  test suite can run against Laravel 13. PHP, Statamic, Monolog and
+  PHPUnit constraints are unchanged — Statamic 6.14 still works on
+  Monolog 3 and PHP 8.4 is already covered.
+
+### Note for upgraders
+
+If you saw `Your requirements could not be resolved … illuminate/support
+^9.0|^10.0|^11.0|^12.0 … but these were not loaded, likely because it
+conflicts with another require` while running
+`composer require emran-alhaddad/statamic-logbook` on a Laravel 13
+project, this release resolves it. Re-run the same command and the
+package will install.
+
+---
+
 ## [2.0.1] — 2026-04-23
 
 Hotfix pass after v2.0.0 shipped — addresses the timeline filter pills,

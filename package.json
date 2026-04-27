@@ -1,6 +1,6 @@
 {
   "name": "statamic-logbook",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Build harness for the Statamic Logbook addon's CP stylesheet and script bundles.",
   "private": true,
   "scripts": {
