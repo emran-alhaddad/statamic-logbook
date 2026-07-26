@@ -36,13 +36,18 @@ class AuditActionPresenter
         'statamic.user.registered'           => 'User registered',
         'statamic.user.passwordChanged'      => 'Password changed',
         'statamic.user.passwordReset'        => 'Password reset',
+        'statamic.user.loginFailed'          => 'Failed sign-in',
         'statamic.user.impersonated'         => 'User impersonated',
         'statamic.user.impersonationEnded'   => 'Impersonation ended',
         'statamic.user.emailChanged'         => 'Email changed',
+        'statamic.user.twoFactorEnabled'     => 'Two-factor enabled',
+        'statamic.user.twoFactorDisabled'    => 'Two-factor disabled',
+        'statamic.user.twoFactorFailed'      => 'Failed two-factor attempt',
+        'statamic.user.recoveryCodeUsed'     => 'Recovery code used',
 
         // --- User lifecycle -------------------------------------------------
         'statamic.user.created'  => 'User created',
-        'statamic.user.saved'    => 'User updated',
+        'statamic.user.saved'    => 'User saved',
         'statamic.user.updated'  => 'User updated',
         'statamic.user.saving'   => 'User saving',
         'statamic.user.deleted'  => 'User deleted',
@@ -56,45 +61,105 @@ class AuditActionPresenter
         'statamic.entry.saving'       => 'Entry saving',
         'statamic.entry.deleted'      => 'Entry deleted',
         'statamic.entry.published'    => 'Entry published',
-        'statamic.entry.unpublished'  => 'Entry unpublished',
+        'statamic.entry.unpublished'  => 'Entry moved to draft',
         'statamic.entry.restored'     => 'Entry restored',
 
         // --- Terms / taxonomies --------------------------------------------
-        'statamic.term.created'  => 'Term created',
-        'statamic.term.saved'    => 'Term saved',
-        'statamic.term.updated'  => 'Term saved',
-        'statamic.term.deleted'  => 'Term deleted',
+        'statamic.term.created'      => 'Term created',
+        'statamic.term.saved'        => 'Term saved',
+        'statamic.term.updated'      => 'Term updated',
+        'statamic.term.deleted'      => 'Term deleted',
+        'statamic.term.published'    => 'Term published',
+        'statamic.term.unpublished'  => 'Term moved to draft',
         'statamic.TermSaved'     => 'Term saved',
         'statamic.TermSaving'    => 'Term saving',
         'statamic.LocalizedTermSaved' => 'Localised term saved',
 
         'statamic.taxonomy.created' => 'Taxonomy created',
         'statamic.taxonomy.saved'   => 'Taxonomy saved',
+        'statamic.taxonomy.updated' => 'Taxonomy updated',
         'statamic.taxonomy.deleted' => 'Taxonomy deleted',
 
+        // --- Roles / user groups (permissions — high audit value) -----------
+        'statamic.role.created'      => 'Role created',
+        'statamic.role.saved'        => 'Role saved',
+        'statamic.role.updated'      => 'Role updated',
+        'statamic.role.deleted'      => 'Role deleted',
+        'statamic.usergroup.created' => 'User group created',
+        'statamic.usergroup.saved'   => 'User group saved',
+        'statamic.usergroup.updated' => 'User group updated',
+        'statamic.usergroup.deleted' => 'User group deleted',
+
         // --- Globals / nav / collections ------------------------------------
-        'statamic.globals.created' => 'Global created',
-        'statamic.globals.saved'   => 'Global saved',
-        'statamic.globals.updated' => 'Global updated',
-        'statamic.globals.deleted' => 'Global deleted',
+        'statamic.globals.created' => 'Global set created',
+        'statamic.globals.saved'   => 'Global set saved',
+        'statamic.globals.updated' => 'Global set updated',
+        'statamic.globals.deleted' => 'Global set deleted',
+
+        'statamic.global_variables.saved'   => 'Globals edited',
+        'statamic.global_variables.updated' => 'Globals edited',
+        'statamic.global_variables.created' => 'Globals created',
+        'statamic.global_variables.deleted' => 'Globals deleted',
 
         'statamic.nav.created'  => 'Nav created',
         'statamic.nav.saved'    => 'Nav saved',
+        'statamic.nav.updated'  => 'Nav updated',
         'statamic.nav.deleted'  => 'Nav deleted',
         'statamic.NavBlueprintFound' => 'Nav blueprint loaded',
 
         'statamic.collection.created' => 'Collection created',
         'statamic.collection.saved'   => 'Collection saved',
+        'statamic.collection.updated' => 'Collection updated',
         'statamic.collection.deleted' => 'Collection deleted',
+
+        // --- Structure trees (page ordering / nav arrangement) --------------
+        'statamic.tree.created' => 'Tree created',
+        'statamic.tree.saved'   => 'Structure reordered',
+        'statamic.tree.updated' => 'Structure reordered',
+        'statamic.tree.deleted' => 'Tree deleted',
+
+        // --- Schema: blueprints & fieldsets ---------------------------------
+        'statamic.blueprint.created' => 'Blueprint created',
+        'statamic.blueprint.saved'   => 'Blueprint saved',
+        'statamic.blueprint.updated' => 'Blueprint updated',
+        'statamic.blueprint.deleted' => 'Blueprint deleted',
+        'statamic.blueprint.reset'   => 'Blueprint reset',
+        'statamic.fieldset.created'  => 'Fieldset created',
+        'statamic.fieldset.saved'    => 'Fieldset saved',
+        'statamic.fieldset.updated'  => 'Fieldset updated',
+        'statamic.fieldset.deleted'  => 'Fieldset deleted',
+        'statamic.fieldset.reset'    => 'Fieldset reset',
+
+        // --- Sites / addons ---------------------------------------------------
+        'statamic.site.created' => 'Site created',
+        'statamic.site.saved'   => 'Site saved',
+        'statamic.site.updated' => 'Site updated',
+        'statamic.site.deleted' => 'Site deleted',
+        'statamic.addon.saved'   => 'Addon settings saved',
+        'statamic.addon.updated' => 'Addon settings saved',
 
         // --- Assets ---------------------------------------------------------
         'statamic.asset.uploaded' => 'Asset uploaded',
+        'statamic.asset.created'  => 'Asset created',
         'statamic.asset.saved'    => 'Asset saved',
+        'statamic.asset.updated'  => 'Asset updated',
         'statamic.asset.deleted'  => 'Asset deleted',
         'statamic.asset.replaced' => 'Asset replaced',
 
-        // --- Form submissions ----------------------------------------------
+        'statamic.asset_folder.saved'      => 'Asset folder saved',
+        'statamic.asset_folder.deleted'    => 'Asset folder deleted',
+        'statamic.asset_container.created' => 'Asset container created',
+        'statamic.asset_container.saved'   => 'Asset container saved',
+        'statamic.asset_container.updated' => 'Asset container updated',
+        'statamic.asset_container.deleted' => 'Asset container deleted',
+
+        // --- Forms & submissions ---------------------------------------------
         'statamic.form.submitted' => 'Form submitted',
+        'statamic.form.created'   => 'Form created',
+        'statamic.form.saved'     => 'Form saved',
+        'statamic.form.updated'   => 'Form updated',
+        'statamic.form.deleted'   => 'Form deleted',
+        'statamic.submission.deleted' => 'Submission deleted',
 
         // --- Catch-all fallback used when no specific mapping matched ------
         'statamic.statamic.event' => 'Statamic event',
@@ -118,7 +183,7 @@ class AuditActionPresenter
         }
         // Auth events — indigo/violet (info-variant).
         if (str_contains($a, 'login') || str_contains($a, 'logout') || str_contains($a, 'loggedin') || str_contains($a, 'loggedout')
-            || str_contains($a, 'password') || str_contains($a, 'impersonat')) {
+            || str_contains($a, 'password') || str_contains($a, 'impersonat') || str_contains($a, 'twofactor')) {
             return 'auth';
         }
         // Updates / saves — amber.

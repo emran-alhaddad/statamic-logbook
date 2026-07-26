@@ -97,10 +97,24 @@ return [
         ))))),
 
         // Fields to ignore when computing entry diffs (high-churn noise).
+        // Fields excluded from the recorded diff. `remember_token` matters:
+        // Statamic's UserProvider re-saves the user whenever Laravel rotates
+        // the remember-me token, which would otherwise log a "User saved"
+        // row on a large share of requests. `preferences` is CP UI state
+        // (column layouts, start page) the CP writes as a side effect of
+        // ordinary browsing — noise, not audit signal.
+        // two_factor_* keeps encrypted secrets/recovery codes out of the
+        // audit DB and stops the UserSaved diff duplicating the dedicated
+        // "Two-factor enabled/disabled" rows.
         'ignore_fields' => array_values(array_filter(array_map('trim', explode(',', (string) env(
             'LOGBOOK_AUDIT_IGNORE_FIELDS',
-            'updated_at,created_at,date,uri,slug'
+            'updated_at,created_at,date,uri,slug,remember_token,password,last_login,preferences,order,'
+                .'two_factor_secret,two_factor_recovery_codes,two_factor_confirmed_at,two_factor_completed'
         ))))),
+
+        // Record sign-in / sign-out / failed-attempt / password-reset rows
+        // from Laravel's auth events.
+        'auth_events' => (bool) env('LOGBOOK_AUDIT_AUTH_EVENTS', true),
 
         // Truncate any single value longer than this to avoid bloat.
         'max_value_length' => (int) env('LOGBOOK_AUDIT_MAX_VALUE_LENGTH', 2000),

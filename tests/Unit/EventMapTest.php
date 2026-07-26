@@ -62,13 +62,41 @@ final class EventMapTest extends TestCase
         }
     }
 
-    public function test_unknown_major_falls_back_to_empty_curated_list_but_excludes_still_resolve(): void
+    public function test_an_unknown_major_still_resolves_the_full_list(): void
     {
-        $curated = EventMap::curatedEvents(999);
-        $excluded = EventMap::excludedEvents(999);
+        // The list is no longer keyed per major — class_exists() filtering
+        // handles version differences, so a future/unknown major gets the
+        // same list minus whatever it does not ship.
+        $this->assertNotEmpty(EventMap::curatedEvents(999));
+        $this->assertNotEmpty(EventMap::excludedEvents(999));
+        $this->assertSame(EventMap::curatedEvents(6), EventMap::curatedEvents(999));
+    }
 
-        $this->assertSame([], $curated);
-        $this->assertSame([], $excluded);
+    public function test_curated_and_excluded_lists_do_not_overlap(): void
+    {
+        $overlap = array_intersect(EventMap::curatedEvents(6), EventMap::excludedEvents(6));
+
+        $this->assertSame([], array_values($overlap), 'An event is both curated and excluded: '.implode(', ', $overlap));
+    }
+
+    public function test_collection_and_schema_events_are_captured(): void
+    {
+        $events = EventMap::curatedEvents(6);
+
+        // Regression: collections, blueprints, forms and sites were missing
+        // from the curated list entirely, so creating a collection recorded
+        // nothing at all.
+        foreach ([
+            \Statamic\Events\CollectionCreated::class,
+            \Statamic\Events\CollectionSaved::class,
+            \Statamic\Events\CollectionDeleted::class,
+            \Statamic\Events\BlueprintSaved::class,
+            \Statamic\Events\FormSaved::class,
+            \Statamic\Events\AssetUploaded::class,
+            \Statamic\Events\UserCreated::class,
+        ] as $class) {
+            $this->assertContains($class, $events);
+        }
     }
 
     public function test_major_resolves_from_vendor_composer_installed_json(): void

@@ -235,7 +235,7 @@
             @if($topAction7d)
                 <div class="lb-action-row">
                     <div>
-                        <p class="lb-action-row__name">{{ $topAction7d->action }}</p>
+                        <p class="lb-action-row__name" title="{{ $topAction7d->action }}">{{ \EmranAlhaddad\StatamicLogbook\Support\AuditActionPresenter::label($topAction7d->action) }}</p>
                         <p class="lb-action-row__count">{{ number_format($topAction7d->c) }} occurrences</p>
                     </div>
                     <a href="{{ cp_route('utilities.logbook.audit') }}" class="lb-action-row__link">

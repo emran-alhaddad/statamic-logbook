@@ -34,7 +34,6 @@ final class StatamicAuditSubscriberTest extends TestCase
             ['Statamic\\Events\\UserCreated', 'created'],
             ['Statamic\\Events\\UserDeleted', 'deleted'],
             ['Statamic\\Events\\UserSaved', 'updated'],
-            ['Statamic\\Events\\EntrySaving', 'updating'],
             ['Statamic\\Events\\UserBlueprintFound', 'event'],
         ];
     }

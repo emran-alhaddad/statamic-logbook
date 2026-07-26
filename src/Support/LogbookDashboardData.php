@@ -310,7 +310,7 @@ class LogbookDashboardData
         foreach ($auditRows as $row) {
             $title = (string) ($row->subject_title ?? '');
             $handle = (string) ($row->subject_handle ?? '');
-            $action = (string) ($row->action ?? 'audit');
+            $action = AuditActionPresenter::label((string) ($row->action ?? 'audit'));
             $label = $title !== ''
                 ? self::truncate($title, 72)
                 : self::truncate($action.($handle !== '' ? ' · '.$handle : ''), 72);

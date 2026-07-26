@@ -20,209 +20,175 @@ namespace EmranAlhaddad\StatamicLogbook\Audit;
 final class EventMap
 {
     /**
-     * Curated high-signal audit events per Statamic major.
+     * Curated audit events. Every terminal (past-tense) Statamic mutation
+     * event that a compliance reviewer would care about.
      *
-     * Keep each list deliberately small. The philosophy is "record
-     * meaningful persisted mutations a compliance reviewer would look
-     * for" — not every event Statamic happens to fire. Set
-     * `logbook.audit_logs.discover_events = true` to opt into broader
-     * capture.
+     * ONE list covers every supported major: entries are stored as strings
+     * and filtered through {@see class_exists()} at resolve time, so a class
+     * that does not exist in the running major is silently dropped. That is
+     * the whole point of the string-based design — there is no need to
+     * duplicate near-identical lists per major.
      *
-     * @var array<int, list<string>>
+     * `*Created` events are listened to deliberately: they are the only
+     * authoritative "this is new" signal. Statamic's own dirty-state
+     * (`getOriginal()`) is empty on eloquent-driver-backed objects, so it
+     * cannot be trusted to tell a creation from an update. The subscriber
+     * suppresses the `*Saved` row that follows a `*Created` for the same
+     * subject in the same request, so a creation still yields one row.
+     *
+     * @var list<string>
      */
     private const CURATED = [
-        3 => [
-            // Entries
-            'Statamic\\Events\\EntryDeleted',
-            'Statamic\\Events\\EntrySaved',
+        // --- Entries ---------------------------------------------------
+        'Statamic\\Events\\EntryCreated',
+        'Statamic\\Events\\EntrySaved',
+        'Statamic\\Events\\EntryDeleted',
+        'Statamic\\Events\\EntryScheduleReached',
 
-            // Taxonomy / terms
-            'Statamic\\Events\\TaxonomyDeleted',
-            'Statamic\\Events\\TaxonomySaved',
-            'Statamic\\Events\\TermDeleted',
-            'Statamic\\Events\\TermSaved',
+        // --- Collections & their trees (structure changes) -------------
+        'Statamic\\Events\\CollectionCreated',
+        'Statamic\\Events\\CollectionSaved',
+        'Statamic\\Events\\CollectionDeleted',
+        'Statamic\\Events\\CollectionTreeSaved',
+        'Statamic\\Events\\CollectionTreeDeleted',
 
-            // Global content / navigation
-            'Statamic\\Events\\GlobalSetDeleted',
-            'Statamic\\Events\\GlobalSetSaved',
-            'Statamic\\Events\\NavDeleted',
-            'Statamic\\Events\\NavSaved',
+        // --- Taxonomies & terms ----------------------------------------
+        'Statamic\\Events\\TaxonomyCreated',
+        'Statamic\\Events\\TaxonomySaved',
+        'Statamic\\Events\\TaxonomyDeleted',
+        'Statamic\\Events\\TermCreated',
+        'Statamic\\Events\\TermSaved',
+        'Statamic\\Events\\TermDeleted',
 
-            // User/security actions
-            'Statamic\\Events\\UserDeleted',
-            'Statamic\\Events\\UserSaved',
-            'Statamic\\Events\\UserGroupDeleted',
-            'Statamic\\Events\\UserGroupSaved',
-            'Statamic\\Events\\RoleDeleted',
-            'Statamic\\Events\\RoleSaved',
-        ],
-        4 => [
-            'Statamic\\Events\\EntryDeleted',
-            'Statamic\\Events\\EntrySaved',
-            'Statamic\\Events\\TaxonomyDeleted',
-            'Statamic\\Events\\TaxonomySaved',
-            'Statamic\\Events\\TermDeleted',
-            'Statamic\\Events\\TermSaved',
-            'Statamic\\Events\\GlobalSetDeleted',
-            'Statamic\\Events\\GlobalSetSaved',
-            'Statamic\\Events\\NavDeleted',
-            'Statamic\\Events\\NavSaved',
-            'Statamic\\Events\\ImpersonationStarted',
-            'Statamic\\Events\\ImpersonationEnded',
-            'Statamic\\Events\\UserDeleted',
-            'Statamic\\Events\\UserSaved',
-            'Statamic\\Events\\UserPasswordChanged',
-            'Statamic\\Events\\UserGroupDeleted',
-            'Statamic\\Events\\UserGroupSaved',
-            'Statamic\\Events\\RoleDeleted',
-            'Statamic\\Events\\RoleSaved',
-        ],
-        5 => [
-            'Statamic\\Events\\EntryDeleted',
-            'Statamic\\Events\\EntrySaved',
-            'Statamic\\Events\\TaxonomyDeleted',
-            'Statamic\\Events\\TaxonomySaved',
-            'Statamic\\Events\\TermDeleted',
-            'Statamic\\Events\\TermSaved',
-            'Statamic\\Events\\GlobalSetDeleted',
-            'Statamic\\Events\\GlobalSetSaved',
-            'Statamic\\Events\\NavDeleted',
-            'Statamic\\Events\\NavSaved',
-            'Statamic\\Events\\ImpersonationStarted',
-            'Statamic\\Events\\ImpersonationEnded',
-            'Statamic\\Events\\UserDeleted',
-            'Statamic\\Events\\UserSaved',
-            'Statamic\\Events\\UserPasswordChanged',
-            'Statamic\\Events\\UserGroupDeleted',
-            'Statamic\\Events\\UserGroupSaved',
-            'Statamic\\Events\\RoleDeleted',
-            'Statamic\\Events\\RoleSaved',
-        ],
-        6 => [
-            // Entries
-            'Statamic\\Events\\EntryDeleted',
-            'Statamic\\Events\\EntrySaved',
+        // --- Globals ----------------------------------------------------
+        // GlobalSet* is the set's config; GlobalVariables* is the actual
+        // content operators edit. Both matter.
+        'Statamic\\Events\\GlobalSetCreated',
+        'Statamic\\Events\\GlobalSetSaved',
+        'Statamic\\Events\\GlobalSetDeleted',
+        'Statamic\\Events\\GlobalVariablesSaved',
 
-            // Taxonomy / terms
-            'Statamic\\Events\\TaxonomyDeleted',
-            'Statamic\\Events\\TaxonomySaved',
-            'Statamic\\Events\\TermDeleted',
-            'Statamic\\Events\\TermSaved',
+        // --- Navigation --------------------------------------------------
+        'Statamic\\Events\\NavCreated',
+        'Statamic\\Events\\NavSaved',
+        'Statamic\\Events\\NavDeleted',
+        'Statamic\\Events\\NavTreeSaved',
+        'Statamic\\Events\\NavTreeDeleted',
 
-            // Global content / navigation
-            'Statamic\\Events\\GlobalSetDeleted',
-            'Statamic\\Events\\GlobalSetSaved',
-            'Statamic\\Events\\NavDeleted',
-            'Statamic\\Events\\NavSaved',
+        // --- Assets -------------------------------------------------------
+        'Statamic\\Events\\AssetUploaded',
+        'Statamic\\Events\\AssetReuploaded',
+        'Statamic\\Events\\AssetReplaced',
+        'Statamic\\Events\\AssetSaved',
+        'Statamic\\Events\\AssetDeleted',
+        'Statamic\\Events\\AssetFolderSaved',
+        'Statamic\\Events\\AssetFolderDeleted',
+        'Statamic\\Events\\AssetContainerCreated',
+        'Statamic\\Events\\AssetContainerSaved',
+        'Statamic\\Events\\AssetContainerDeleted',
 
-            // User/security actions
-            'Statamic\\Events\\ImpersonationStarted',
-            'Statamic\\Events\\ImpersonationEnded',
-            'Statamic\\Events\\UserDeleted',
-            'Statamic\\Events\\UserSaved',
-            'Statamic\\Events\\UserPasswordChanged',
-            'Statamic\\Events\\UserGroupDeleted',
-            'Statamic\\Events\\UserGroupSaved',
-            'Statamic\\Events\\RoleDeleted',
-            'Statamic\\Events\\RoleSaved',
+        // --- Schema: blueprints & fieldsets -------------------------------
+        // Field-level schema edits change what every editor sees.
+        'Statamic\\Events\\BlueprintCreated',
+        'Statamic\\Events\\BlueprintSaved',
+        'Statamic\\Events\\BlueprintDeleted',
+        'Statamic\\Events\\BlueprintReset',
+        'Statamic\\Events\\FieldsetCreated',
+        'Statamic\\Events\\FieldsetSaved',
+        'Statamic\\Events\\FieldsetDeleted',
+        'Statamic\\Events\\FieldsetReset',
 
-            // Statamic 6-specific security events (introduced with
-            // 2FA/passkeys redesign). Included only when the host
-            // actually has these classes — class_exists guards
-            // them downstream, so older majors ignore them.
-            'Statamic\\Events\\TwoFactorAuthenticationEnabled',
-            'Statamic\\Events\\TwoFactorAuthenticationDisabled',
-        ],
+        // --- Forms ---------------------------------------------------------
+        'Statamic\\Events\\FormCreated',
+        'Statamic\\Events\\FormSaved',
+        'Statamic\\Events\\FormDeleted',
+        'Statamic\\Events\\FormSubmitted',
+        'Statamic\\Events\\SubmissionDeleted',
+
+        // --- Sites (v6 multi-site config) -----------------------------------
+        'Statamic\\Events\\SiteCreated',
+        'Statamic\\Events\\SiteSaved',
+        'Statamic\\Events\\SiteDeleted',
+
+        // --- Addon settings ---------------------------------------------------
+        'Statamic\\Events\\AddonSettingsSaved',
+
+        // --- Users, roles, groups (security) ------------------------------------
+        'Statamic\\Events\\UserCreated',
+        'Statamic\\Events\\UserSaved',
+        'Statamic\\Events\\UserDeleted',
+        'Statamic\\Events\\UserPasswordChanged',
+        'Statamic\\Events\\UserGroupSaved',
+        'Statamic\\Events\\UserGroupDeleted',
+        'Statamic\\Events\\RoleSaved',
+        'Statamic\\Events\\RoleDeleted',
+        'Statamic\\Events\\ImpersonationStarted',
+        'Statamic\\Events\\ImpersonationEnded',
+        'Statamic\\Events\\TwoFactorAuthenticationEnabled',
+        'Statamic\\Events\\TwoFactorAuthenticationDisabled',
+        'Statamic\\Events\\TwoFactorAuthenticationFailed',
+        'Statamic\\Events\\TwoFactorRecoveryCodeReplaced',
     ];
 
     /**
-     * Curated exclude list per Statamic major.
+     * Never audited, even if a user allow-lists them or discovery is on.
      *
-     * Events in this list are never audited even if they appear in
-     * a user-configured allow-list or in discovery mode. These are
-     * classes that fire constantly but carry no audit value — blueprints,
-     * caching, search reindex, response lifecycle.
+     * Three groups: (1) events that fire on every render/request and carry
+     * no mutation, (2) cache/index/telemetry plumbing, (3) events that
+     * duplicate one we already record.
      *
-     * @var array<int, list<string>>
+     * @var list<string>
      */
     private const EXCLUDE = [
-        3 => [
-            'Statamic\\Events\\EntryCreated',
-            'Statamic\\Events\\EntrySaving',
-            'Statamic\\Events\\NavTreeSaved',
-            'Statamic\\Events\\ResponseCreated',
-        ],
-        4 => [
-            'Statamic\\Events\\EntryCreated',
-            'Statamic\\Events\\EntrySaving',
-            'Statamic\\Events\\GlobalVariablesDeleted',
-            'Statamic\\Events\\GlobalVariablesSaved',
-            'Statamic\\Events\\NavTreeSaved',
-            'Statamic\\Events\\AssetContainerBlueprintFound',
-            'Statamic\\Events\\EntryBlueprintFound',
-            'Statamic\\Events\\FormBlueprintFound',
-            'Statamic\\Events\\GlobalVariablesBlueprintFound',
-            'Statamic\\Events\\TermBlueprintFound',
-            'Statamic\\Events\\UserBlueprintFound',
-            'Statamic\\Events\\ResponseCreated',
-            'Statamic\\Events\\GlideAssetCacheCleared',
-            'Statamic\\Events\\GlideCacheCleared',
-            'Statamic\\Events\\GlideImageGenerated',
-            'Statamic\\Events\\StacheCleared',
-            'Statamic\\Events\\StacheWarmed',
-            'Statamic\\Events\\StaticCacheCleared',
-            'Statamic\\Events\\SearchIndexUpdated',
-            'Statamic\\Events\\UrlInvalidated',
-        ],
-        5 => [
-            'Statamic\\Events\\EntryCreated',
-            'Statamic\\Events\\EntrySaving',
-            'Statamic\\Events\\GlobalVariablesDeleted',
-            'Statamic\\Events\\GlobalVariablesSaved',
-            'Statamic\\Events\\NavTreeSaved',
-            'Statamic\\Events\\AssetContainerBlueprintFound',
-            'Statamic\\Events\\EntryBlueprintFound',
-            'Statamic\\Events\\FormBlueprintFound',
-            'Statamic\\Events\\GlobalVariablesBlueprintFound',
-            'Statamic\\Events\\TermBlueprintFound',
-            'Statamic\\Events\\UserBlueprintFound',
-            'Statamic\\Events\\ResponseCreated',
-            'Statamic\\Events\\GlideAssetCacheCleared',
-            'Statamic\\Events\\GlideCacheCleared',
-            'Statamic\\Events\\GlideImageGenerated',
-            'Statamic\\Events\\StacheCleared',
-            'Statamic\\Events\\StacheWarmed',
-            'Statamic\\Events\\StaticCacheCleared',
-            'Statamic\\Events\\SearchIndexUpdated',
-            'Statamic\\Events\\UrlInvalidated',
-        ],
-        6 => [
-            'Statamic\\Events\\EntryCreated',
-            'Statamic\\Events\\EntrySaving',
-            'Statamic\\Events\\GlobalVariablesDeleted',
-            'Statamic\\Events\\GlobalVariablesSaved',
-            'Statamic\\Events\\NavTreeSaved',
-            'Statamic\\Events\\AssetContainerBlueprintFound',
-            'Statamic\\Events\\EntryBlueprintFound',
-            'Statamic\\Events\\FormBlueprintFound',
-            'Statamic\\Events\\GlobalVariablesBlueprintFound',
-            'Statamic\\Events\\NavBlueprintFound',
-            'Statamic\\Events\\TermBlueprintFound',
-            'Statamic\\Events\\UserBlueprintFound',
-            'Statamic\\Events\\UserGroupBlueprintFound',
-            'Statamic\\Events\\ResponseCreated',
-            'Statamic\\Events\\GlideAssetCacheCleared',
-            'Statamic\\Events\\GlideCacheCleared',
-            'Statamic\\Events\\GlideImageGenerated',
-            'Statamic\\Events\\StacheCleared',
-            'Statamic\\Events\\StacheWarmed',
-            'Statamic\\Events\\StaticCacheCleared',
-            'Statamic\\Events\\SearchIndexUpdated',
-            'Statamic\\Events\\UrlInvalidated',
-            // v6 telemetry/cache plumbing
-            'Statamic\\Events\\LicensesRefreshed',
-            'Statamic\\Events\\LicenseSet',
-        ],
+        // (1) Fires on every render — blueprints are *found*, not changed.
+        'Statamic\\Events\\AssetContainerBlueprintFound',
+        'Statamic\\Events\\EntryBlueprintFound',
+        'Statamic\\Events\\FormBlueprintFound',
+        'Statamic\\Events\\GlobalVariablesBlueprintFound',
+        'Statamic\\Events\\NavBlueprintFound',
+        'Statamic\\Events\\TermBlueprintFound',
+        'Statamic\\Events\\UserBlueprintFound',
+        'Statamic\\Events\\UserGroupBlueprintFound',
+        'Statamic\\Events\\ResponseCreated',
+
+        // (2) Cache, search, image and licence plumbing.
+        'Statamic\\Events\\GlideAssetCacheCleared',
+        'Statamic\\Events\\GlideCacheCleared',
+        'Statamic\\Events\\GlideImageGenerated',
+        'Statamic\\Events\\StacheCleared',
+        'Statamic\\Events\\StacheWarmed',
+        'Statamic\\Events\\StaticCacheCleared',
+        'Statamic\\Events\\SearchIndexUpdated',
+        'Statamic\\Events\\UrlInvalidated',
+        'Statamic\\Events\\LicensesRefreshed',
+        'Statamic\\Events\\LicenseSet',
+        'Statamic\\Events\\DefaultPreferencesSaved',
+
+        // (3) Duplicates / bookkeeping side-effects of an event we record.
+        'Statamic\\Events\\DuplicateIdRegenerated',
+        'Statamic\\Events\\AssetReferencesUpdated',
+        'Statamic\\Events\\TermReferencesUpdated',
+        'Statamic\\Events\\CollectionTreeEntriesMovedOrRemoved',
+        // Fires LAST in Asset::upload() (after AssetSaved + AssetUploaded),
+        // so it cannot serve as the creation signal there; the upload row
+        // already covers the act.
+        'Statamic\\Events\\AssetCreated',
+        'Statamic\\Events\\LocalizedTermSaved',
+        'Statamic\\Events\\LocalizedTermDeleted',
+        'Statamic\\Events\\SubmissionCreated',
+        'Statamic\\Events\\SubmissionSaved',
+        // Fire alongside GlobalSetCreated/GlobalSetDeleted for one act.
+        'Statamic\\Events\\GlobalVariablesCreated',
+        'Statamic\\Events\\GlobalVariablesDeleted',
+        // Fires right after the UserCreated+UserSaved pair on front-end
+        // registration — same act, third event.
+        'Statamic\\Events\\UserRegistered',
+        // Revisions fire alongside every entry save when revisions are on.
+        'Statamic\\Events\\RevisionSaved',
+        'Statamic\\Events\\RevisionDeleted',
+        // Fires on every 2FA-protected page load, not a state change.
+        'Statamic\\Events\\TwoFactorAuthenticationChallenged',
+        'Statamic\\Events\\ValidTwoFactorAuthenticationCodeProvided',
     ];
 
     /**
@@ -248,7 +214,7 @@ final class EventMap
      */
     public static function curatedEvents(?int $major = null): array
     {
-        return self::filterExisting(self::CURATED[self::majorFor($major)] ?? []);
+        return self::filterExisting(self::CURATED);
     }
 
     /**
@@ -262,7 +228,7 @@ final class EventMap
      */
     public static function excludedEvents(?int $major = null): array
     {
-        return array_values(self::EXCLUDE[self::majorFor($major)] ?? []);
+        return array_values(self::EXCLUDE);
     }
 
     /**
@@ -348,7 +314,14 @@ final class EventMap
             return null;
         }
 
-        $path = base_path('vendor/composer/installed.json');
+        // base_path() exists as a function but still throws when the bound
+        // container is not a full Application (bare container, early boot).
+        try {
+            $path = base_path('vendor/composer/installed.json');
+        } catch (\Throwable) {
+            return null;
+        }
+
         if (! is_readable($path)) {
             return null;
         }
