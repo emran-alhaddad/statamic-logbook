@@ -68,8 +68,7 @@
             @endif
             @can('configure logbook')
                 <a href="{{ cp_route('utilities.logbook.settings') }}"
-                   class="lb-tab {{ ($active ?? '') === 'settings' ? 'lb-tab--active' : '' }}"
-                   style="margin-left: auto;">
+                   class="lb-tab lb-tab--end {{ ($active ?? '') === 'settings' ? 'lb-tab--active' : '' }}">
                     Settings
                 </a>
             @endcan

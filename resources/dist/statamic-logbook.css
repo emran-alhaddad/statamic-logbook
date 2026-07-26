@@ -479,6 +479,7 @@
     border-radius: var(--lb-r-full) var(--lb-r-full) 0 0;
 }
 .lb-tab:focus-visible { outline: none; color: var(--lb-text-strong); box-shadow: 0 2px 0 0 var(--lb-accent) inset; }
+.lb-tab--end { margin-left: auto; }
 
 /* ============================================================
    Inputs
@@ -1910,4 +1911,383 @@ body > .lb-preset__menu { display: block; }
     .lb-pagination,
     #logbook-modal { display: none !important; }
     .lb-box { box-shadow: none; border-color: #ddd; }
+}
+
+/* ============================================================
+   Settings & first-run setup
+   ------------------------------------------------------------
+   The settings surface is a stack of sections, each owned by a
+   master switch. Section bodies dim when their switch is off.
+   Group cards expand (<details>) into per-event checklists.
+   ============================================================ */
+
+.lb-settings {
+    max-width: 880px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--lb-s-4);
+}
+
+/* --- Callouts (save confirmation, setup errors, install output) --- */
+
+.lb-callout {
+    display: flex;
+    gap: var(--lb-s-3);
+    align-items: flex-start;
+    padding: var(--lb-s-3) var(--lb-s-4);
+    border-radius: var(--lb-r-lg);
+    border: 1px solid var(--lb-border);
+    background: var(--lb-bg-subtle);
+    font-size: var(--lb-fs-13);
+    color: var(--lb-text);
+    margin-bottom: var(--lb-s-4);
+}
+.lb-callout pre {
+    margin: 0;
+    white-space: pre-wrap;
+    font-family: var(--lb-font-mono);
+    font-size: var(--lb-fs-12);
+    color: var(--lb-text);
+}
+.lb-callout--ok     { border-color: rgba(34, 197, 94, 0.35);  background: rgba(34, 197, 94, 0.07); }
+.lb-callout--danger { border-color: rgba(239, 68, 68, 0.35);  background: rgba(239, 68, 68, 0.07); }
+.lb-callout--info   { border-color: rgba(99, 102, 241, 0.30); background: rgba(99, 102, 241, 0.06); }
+.dark .lb-callout--ok     { background: rgba(34, 197, 94, 0.10); }
+.dark .lb-callout--danger { background: rgba(239, 68, 68, 0.10); }
+.dark .lb-callout--info   { background: rgba(99, 102, 241, 0.10); }
+.lb-callout__icon { flex: none; line-height: 1.45; }
+
+/* --- Section: a panel owned by a master switch --- */
+
+.lb-settings-section {
+    background: var(--lb-bg-elev);
+    border: 1px solid var(--lb-border);
+    border-radius: var(--lb-r-xl);
+    box-shadow: var(--lb-shadow-xs);
+    overflow: hidden;
+}
+.lb-settings-section__head {
+    display: flex;
+    align-items: center;
+    gap: var(--lb-s-3);
+    padding: var(--lb-s-4) var(--lb-s-5);
+    background: var(--lb-bg-subtle);
+    border-bottom: 1px solid var(--lb-border-subtle);
+}
+.lb-settings-section__titles { min-width: 0; }
+.lb-settings-section__title {
+    font-size: var(--lb-fs-14);
+    font-weight: 600;
+    color: var(--lb-text-strong);
+    margin: 0;
+    line-height: var(--lb-lh-tight, 1.25);
+}
+.lb-settings-section__sub {
+    font-size: var(--lb-fs-12);
+    color: var(--lb-text-muted);
+    margin: 2px 0 0;
+}
+.lb-settings-section__body {
+    padding: var(--lb-s-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--lb-s-5);
+    transition: opacity var(--lb-t-fast) var(--lb-ease);
+}
+.lb-settings-section.is-off .lb-settings-section__body {
+    opacity: 0.45;
+    pointer-events: none;
+    user-select: none;
+}
+
+/* --- Toggle switch (section masters, page-views) --- */
+
+.lb-switch {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+    width: 36px;
+    height: 21px;
+    cursor: pointer;
+}
+.lb-switch input {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    cursor: pointer;
+}
+.lb-switch__track {
+    width: 100%;
+    height: 100%;
+    border-radius: var(--lb-r-full);
+    background: var(--lb-zinc-300);
+    transition: background var(--lb-t-fast) var(--lb-ease);
+}
+.dark .lb-switch__track { background: var(--lb-zinc-600); }
+.lb-switch__knob {
+    position: absolute;
+    top: 2.5px;
+    left: 2.5px;
+    width: 16px;
+    height: 16px;
+    border-radius: var(--lb-r-full);
+    background: #fff;
+    box-shadow: var(--lb-shadow-sm);
+    transition: transform 150ms var(--lb-ease);
+}
+.lb-switch input:checked ~ .lb-switch__track { background: var(--lb-accent); }
+.lb-switch input:checked ~ .lb-switch__knob  { transform: translateX(15px); }
+.lb-switch input:focus-visible ~ .lb-switch__track { box-shadow: var(--lb-ring); }
+@media (prefers-reduced-motion: reduce) {
+    .lb-switch__knob, .lb-switch__track { transition: none; }
+}
+
+/* --- Field (label + control + help) --- */
+
+.lb-field { display: flex; flex-direction: column; gap: var(--lb-s-1); min-width: 0; }
+.lb-field__label {
+    font-size: var(--lb-fs-12);
+    font-weight: 600;
+    color: var(--lb-text);
+}
+.lb-field__help {
+    font-size: var(--lb-fs-11);
+    color: var(--lb-text-muted);
+    margin: 0;
+}
+.lb-field-row {
+    display: grid;
+    gap: var(--lb-s-3);
+}
+.lb-field-row--split { grid-template-columns: 1fr 1fr; }
+.lb-field-row--host  { grid-template-columns: 2fr 1fr; }
+@media (max-width: 540px) {
+    .lb-field-row--split, .lb-field-row--host { grid-template-columns: 1fr; }
+}
+
+/* --- Level picker: selectable severity chips --- */
+
+.lb-levels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--lb-s-2);
+}
+.lb-level {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--lb-border);
+    border-radius: var(--lb-r-full);
+    background: var(--lb-bg-elev);
+    font-size: var(--lb-fs-12);
+    font-weight: 500;
+    color: var(--lb-text-muted);
+    cursor: pointer;
+    transition:
+        border-color var(--lb-t-fast) var(--lb-ease),
+        background var(--lb-t-fast) var(--lb-ease),
+        color var(--lb-t-fast) var(--lb-ease);
+    text-transform: capitalize;
+    user-select: none;
+}
+.lb-level:hover { border-color: var(--lb-border-strong); color: var(--lb-text); }
+.lb-level input {
+    position: absolute;
+    opacity: 0;
+    inset: 0;
+    margin: 0;
+    cursor: pointer;
+}
+.lb-level__dot {
+    width: 7px;
+    height: 7px;
+    border-radius: var(--lb-r-full);
+    background: var(--lb-zinc-400);
+    flex: none;
+}
+.lb-level--emergency .lb-level__dot,
+.lb-level--alert .lb-level__dot,
+.lb-level--critical .lb-level__dot,
+.lb-level--error .lb-level__dot { background: var(--lb-danger-500); }
+.lb-level--warning .lb-level__dot { background: var(--lb-warn-500); }
+.lb-level--notice .lb-level__dot,
+.lb-level--info .lb-level__dot { background: var(--lb-info-500); }
+.lb-level--debug .lb-level__dot { background: var(--lb-zinc-400); }
+.lb-level:has(input:checked) {
+    border-color: var(--lb-accent);
+    background: var(--lb-accent-50);
+    color: var(--lb-text-strong);
+}
+.dark .lb-level:has(input:checked) {
+    background: rgba(99, 102, 241, 0.15);
+}
+.lb-level:has(input:focus-visible) { box-shadow: var(--lb-ring); }
+
+/* --- Audit group cards --- */
+
+.lb-groups {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: var(--lb-s-3);
+}
+.lb-group {
+    border: 1px solid var(--lb-border);
+    border-radius: var(--lb-r-lg);
+    background: var(--lb-bg-elev);
+    transition: border-color var(--lb-t-fast) var(--lb-ease);
+}
+.lb-group:hover { border-color: var(--lb-border-strong); }
+.lb-group[open] { border-color: var(--lb-border-strong); }
+.lb-group__summary {
+    display: flex;
+    align-items: center;
+    gap: var(--lb-s-2);
+    padding: var(--lb-s-3) var(--lb-s-3);
+    cursor: pointer;
+    list-style: none;
+    border-radius: var(--lb-r-lg);
+}
+.lb-group__summary::-webkit-details-marker { display: none; }
+.lb-group__summary:focus-visible { outline: none; box-shadow: var(--lb-ring); }
+.lb-group__name {
+    font-size: var(--lb-fs-13);
+    font-weight: 600;
+    color: var(--lb-text-strong);
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.lb-group__count {
+    font-size: var(--lb-fs-11);
+    font-variant-numeric: tabular-nums;
+    color: var(--lb-text-muted);
+    background: var(--lb-bg-muted);
+    border-radius: var(--lb-r-full);
+    padding: 1px 8px;
+    flex: none;
+}
+.lb-group__chev {
+    flex: none;
+    width: 12px;
+    height: 12px;
+    color: var(--lb-text-subtle);
+    transition: transform 150ms var(--lb-ease);
+}
+.lb-group[open] .lb-group__chev { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .lb-group__chev { transition: none; } }
+.lb-group__events {
+    display: flex;
+    flex-direction: column;
+    padding: var(--lb-s-1) var(--lb-s-2) var(--lb-s-2);
+    border-top: 1px solid var(--lb-border-subtle);
+}
+.lb-check {
+    display: flex;
+    align-items: center;
+    gap: var(--lb-s-2);
+    padding: 5px var(--lb-s-2);
+    border-radius: var(--lb-r-md);
+    font-size: var(--lb-fs-12);
+    color: var(--lb-text);
+    cursor: pointer;
+    transition: background var(--lb-t-fast) var(--lb-ease);
+}
+.lb-check:hover { background: var(--lb-bg-hover); }
+.lb-check input {
+    accent-color: var(--lb-accent);
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    flex: none;
+    cursor: pointer;
+}
+.lb-check input:focus-visible { outline: none; box-shadow: var(--lb-ring); border-radius: 3px; }
+.lb-group .lb-check--all input { width: 15px; height: 15px; }
+
+/* --- Save bar --- */
+
+.lb-savebar {
+    display: flex;
+    align-items: center;
+    gap: var(--lb-s-3);
+}
+.lb-savebar__note { font-size: var(--lb-fs-12); color: var(--lb-text-muted); }
+
+/* --- Status meta line (db / tables) --- */
+
+.lb-status-line {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--lb-s-2) var(--lb-s-4);
+    font-size: var(--lb-fs-12);
+    color: var(--lb-text-muted);
+}
+.lb-status-line__item { display: inline-flex; align-items: center; gap: 6px; }
+.lb-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: var(--lb-r-full);
+    background: var(--lb-zinc-400);
+    flex: none;
+}
+.lb-dot--ok   { background: var(--lb-ok-500); }
+.lb-dot--warn { background: var(--lb-warn-500); }
+
+/* --- First-run setup screen --- */
+
+.lb-setup {
+    max-width: 560px;
+    margin: 0 auto;
+    padding: var(--lb-s-8) 0 var(--lb-s-10);
+}
+.lb-setup__head { text-align: center; margin-bottom: var(--lb-s-6); }
+.lb-setup__mark {
+    width: 44px;
+    height: 44px;
+    margin: 0 auto var(--lb-s-3);
+    border-radius: var(--lb-r-xl);
+    background: var(--lb-accent-50);
+    color: var(--lb-accent-600);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.dark .lb-setup__mark { background: rgba(99, 102, 241, 0.15); color: var(--lb-accent-300); }
+.lb-setup__title {
+    font-size: var(--lb-fs-20);
+    font-weight: 700;
+    color: var(--lb-text-strong);
+    margin: 0 0 var(--lb-s-1);
+    text-wrap: balance;
+}
+.lb-setup__sub {
+    font-size: var(--lb-fs-13);
+    color: var(--lb-text-muted);
+    margin: 0 auto;
+    max-width: 44ch;
+}
+.lb-setup__card {
+    background: var(--lb-bg-elev);
+    border: 1px solid var(--lb-border);
+    border-radius: var(--lb-r-xl);
+    box-shadow: var(--lb-shadow-sm);
+    padding: var(--lb-s-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--lb-s-4);
+    margin-bottom: var(--lb-s-5);
+}
+.lb-setup__actions { text-align: center; }
+.lb-setup__hint {
+    font-size: var(--lb-fs-12);
+    color: var(--lb-text-muted);
+    margin: var(--lb-s-2) auto 0;
+    max-width: 46ch;
 }

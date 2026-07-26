@@ -2,96 +2,99 @@
     Logbook — Settings + first-run database setup
     ---------------------------------------------
     Two modes:
-      - Not configured  → DB setup screen: connection fields prefilled from
-        .env (falling back to the app's own database), editable, one-click
-        table install. No other questions — capture starts with sensible
-        defaults and is tuned here afterwards.
-      - Configured      → capture settings, structured the way operators
-        think: System Logs (with its levels), Audit Logs (per CMS
-        component, each showing its actual events), housekeeping.
+      - Not configured → centered DB setup card, prefilled from .env.
+      - Configured     → sectioned settings: System Logs (master switch +
+        level chips), Audit Logs (master switch + per-component group
+        cards expanding into event checklists), Housekeeping.
 
-    Persisted via SettingsRepository (DB) + EnvWriter (.env, DB creds only).
+    All styling comes from the addon stylesheet (lb-settings-*, lb-switch,
+    lb-level, lb-group, lb-check, lb-callout, lb-setup — see the
+    "Settings & first-run setup" block in resources/dist/statamic-logbook.css).
 --}}
 @extends('statamic-logbook::cp.logbook._layout', ['active' => 'settings'])
 
 @section('panel')
 
-@php
-    $card = 'margin-bottom: var(--lb-s-4); padding: var(--lb-s-4); border: 1px solid var(--lb-border, rgba(128,128,128,.25)); border-radius: 10px;';
-    $sub  = 'lb-toolbar__sub';
-@endphp
-
 @if($saved)
-    <div role="status" style="margin-bottom: var(--lb-s-4); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(34,197,94,.35); background: rgba(34,197,94,.08);">
-        ✓ Saved — takes effect immediately.
+    <div class="lb-callout lb-callout--ok" role="status">
+        <span class="lb-callout__icon" aria-hidden="true">✓</span>
+        <span>Settings saved. They apply from the next page load.</span>
     </div>
 @endif
 
 @if($setupError !== '')
-    <div role="alert" style="margin-bottom: var(--lb-s-4); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(239,68,68,.4); background: rgba(239,68,68,.08);">
-        {{ $setupError }}
+    <div class="lb-callout lb-callout--danger" role="alert">
+        <span class="lb-callout__icon" aria-hidden="true">✕</span>
+        <span>{{ $setupError }}</span>
     </div>
 @endif
 
 @if($installOutput !== '')
-    <div role="status" style="margin-bottom: var(--lb-s-4); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(99,102,241,.35); background: rgba(99,102,241,.08);">
-        <pre style="white-space: pre-wrap; font-size: 12px; margin:0;">{{ $installOutput }}</pre>
+    <div class="lb-callout lb-callout--info" role="status">
+        <pre>{{ $installOutput }}</pre>
     </div>
 @endif
 
 @unless($configured)
     {{-- ======================= FIRST-RUN: DATABASE ======================= --}}
-    <div style="max-width: 640px; margin: 0 auto; padding: var(--lb-s-6) 0;">
-        <div style="text-align:center; margin-bottom: var(--lb-s-5);">
-            <h2 style="font-size: 22px; font-weight: 700; margin-bottom: 6px;">Set up Logbook</h2>
-            <p class="{{ $sub }}">
-                Logbook keeps its logs in a database. These fields are prefilled from your
-                <code>.env</code> — keep them to use your app's database, or point at a separate one.
+    <div class="lb-setup">
+        <div class="lb-setup__head">
+            <div class="lb-setup__mark" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <ellipse cx="12" cy="5" rx="8" ry="3"/>
+                    <path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/>
+                    <path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/>
+                </svg>
+            </div>
+            <h2 class="lb-setup__title">Connect Logbook to a database</h2>
+            <p class="lb-setup__sub">
+                Prefilled from your <code>.env</code> — keep it to log into your app's
+                database, or point at a separate one.
             </p>
         </div>
 
         <form method="POST" action="{{ cp_route('utilities.logbook.settings.database') }}">
             @csrf
-            <div style="{{ $card }}">
-                <div style="display:grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 10px;">
-                    <label>
-                        <span style="font-weight:600;">Host</span>
-                        <input type="text" name="host" value="{{ $db['host'] }}" class="lb-input" style="width:100%; margin-top:4px;">
-                    </label>
-                    <label>
-                        <span style="font-weight:600;">Port</span>
-                        <input type="text" name="port" value="{{ $db['port'] }}" class="lb-input" style="width:100%; margin-top:4px;">
-                    </label>
+            <div class="lb-setup__card">
+                <div class="lb-field-row lb-field-row--host">
+                    <div class="lb-field">
+                        <label class="lb-field__label" for="lb-db-host">Host</label>
+                        <input id="lb-db-host" type="text" name="host" value="{{ $db['host'] }}" class="lb-input">
+                    </div>
+                    <div class="lb-field">
+                        <label class="lb-field__label" for="lb-db-port">Port</label>
+                        <input id="lb-db-port" type="text" name="port" value="{{ $db['port'] }}" class="lb-input">
+                    </div>
                 </div>
-                <label style="display:block; margin-bottom:10px;">
-                    <span style="font-weight:600;">Database</span>
-                    <input type="text" name="database" value="{{ $db['database'] }}" class="lb-input" style="width:100%; margin-top:4px;" required>
-                </label>
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <label>
-                        <span style="font-weight:600;">Username</span>
-                        <input type="text" name="username" value="{{ $db['username'] }}" class="lb-input" style="width:100%; margin-top:4px;" required>
-                    </label>
-                    <label>
-                        <span style="font-weight:600;">Password</span>
-                        <input type="password" name="password" value="{{ $db['password'] }}" class="lb-input" style="width:100%; margin-top:4px;" autocomplete="new-password">
-                    </label>
+
+                <div class="lb-field">
+                    <label class="lb-field__label" for="lb-db-database">Database</label>
+                    <input id="lb-db-database" type="text" name="database" value="{{ $db['database'] }}" class="lb-input" required>
+                </div>
+
+                <div class="lb-field-row lb-field-row--split">
+                    <div class="lb-field">
+                        <label class="lb-field__label" for="lb-db-username">Username</label>
+                        <input id="lb-db-username" type="text" name="username" value="{{ $db['username'] }}" class="lb-input" required>
+                    </div>
+                    <div class="lb-field">
+                        <label class="lb-field__label" for="lb-db-password">Password</label>
+                        <input id="lb-db-password" type="password" name="password" value="{{ $db['password'] }}" class="lb-input" autocomplete="new-password">
+                    </div>
                 </div>
 
                 @unless($envWritable)
-                    <p class="{{ $sub }}" style="margin-top:10px;">
-                        ⚠ <code>.env</code> is not writable — settings will apply, but you'll need to add the
-                        <code>LOGBOOK_DB_*</code> keys manually afterwards.
+                    <p class="lb-field__help">
+                        ⚠ <code>.env</code> is not writable — the connection will work now, but add the
+                        <code>LOGBOOK_DB_*</code> keys manually to keep it after a restart.
                     </p>
                 @endunless
             </div>
 
-            <div style="text-align:center;">
-                <button type="submit" class="lb-btn" style="font-weight: 700; padding: 10px 24px;">
-                    Connect &amp; install →
-                </button>
-                <p class="{{ $sub }}" style="margin-top:6px;">
-                    Creates the Logbook tables and starts capturing with everything enabled.
+            <div class="lb-setup__actions">
+                <button type="submit" class="lb-btn lb-btn--primary">Connect &amp; install</button>
+                <p class="lb-setup__hint">
+                    Creates the Logbook tables and starts capturing everything.
                     Fine-tune what's recorded right after.
                 </p>
             </div>
@@ -99,118 +102,167 @@
     </div>
 @else
     {{-- ============================ SETTINGS ============================ --}}
-    <form method="POST" action="{{ cp_route('utilities.logbook.settings.save') }}" style="max-width: 900px;">
+    <form method="POST" action="{{ cp_route('utilities.logbook.settings.save') }}" class="lb-settings" data-lb-settings>
         @csrf
 
-        {{-- ---------------- System logs ---------------- --}}
-        <div style="{{ $card }}">
-            <label style="display:flex; gap:10px; align-items:center; cursor:pointer; margin-bottom: 4px;">
-                <input type="checkbox" name="system_logs" value="1" @checked($settings['system_logs']) data-lb-master="system">
-                <span style="font-weight:700; font-size: 15px;">System Logs</span>
-            </label>
-            <p class="{{ $sub }}" style="margin-bottom: 12px;">
-                Server-side application messages — errors, warnings, notices from Laravel, Statamic and your own code.
-            </p>
+        {{-- System logs --}}
+        <section class="lb-settings-section {{ $settings['system_logs'] ? '' : 'is-off' }}" data-lb-section>
+            <header class="lb-settings-section__head">
+                <label class="lb-switch">
+                    <input type="checkbox" name="system_logs" value="1" @checked($settings['system_logs']) data-lb-section-master
+                           aria-label="Capture system logs">
+                    <span class="lb-switch__track"></span>
+                    <span class="lb-switch__knob"></span>
+                </label>
+                <div class="lb-settings-section__titles">
+                    <h3 class="lb-settings-section__title">System Logs</h3>
+                    <p class="lb-settings-section__sub">Application messages from Laravel, Statamic and your own code.</p>
+                </div>
+            </header>
+            <div class="lb-settings-section__body">
+                <div class="lb-field">
+                    <span class="lb-field__label">Captured levels</span>
+                    <div class="lb-levels">
+                        @foreach($levels as $level)
+                            <label class="lb-level lb-level--{{ $level }}">
+                                <input type="checkbox" name="levels[{{ $level }}]" value="1" @checked($settings['system_levels'][$level] ?? true)>
+                                <span class="lb-level__dot" aria-hidden="true"></span>
+                                {{ $level }}
+                            </label>
+                        @endforeach
+                    </div>
+                </div>
 
-            <div data-lb-section="system" style="display:flex; flex-wrap:wrap; gap: 8px 18px;">
-                @foreach($levels as $level)
-                    <label style="display:flex; gap:6px; align-items:center; cursor:pointer;">
-                        <input type="checkbox" name="levels[{{ $level }}]" value="1" @checked($settings['system_levels'][$level] ?? true)>
-                        <span style="text-transform: capitalize;">{{ $level }}</span>
-                    </label>
-                @endforeach
+                <div class="lb-field">
+                    <label class="lb-field__label" for="lb-ignore-channels">Ignored channels</label>
+                    <input id="lb-ignore-channels" type="text" name="ignore_channels_extra"
+                           value="{{ $settings['ignore_channels_extra'] }}"
+                           placeholder="e.g. deprecations, queries" class="lb-input lb-field-md">
+                    <p class="lb-field__help">Comma-separated log channels to skip, on top of the defaults.</p>
+                </div>
             </div>
+        </section>
 
-            <label style="display:block; margin-top: 12px;">
-                <span style="font-weight:600;">Ignored channels</span>
-                <input type="text" name="ignore_channels_extra" value="{{ $settings['ignore_channels_extra'] }}"
-                       placeholder="e.g. deprecations,queries" class="lb-input" style="width:100%; max-width:420px; margin-top:4px;">
-                <span class="{{ $sub }}">Comma-separated log channels to skip, on top of the defaults.</span>
-            </label>
-        </div>
-
-        {{-- ---------------- Audit logs ---------------- --}}
-        <div style="{{ $card }}">
-            <label style="display:flex; gap:10px; align-items:center; cursor:pointer; margin-bottom: 4px;">
-                <input type="checkbox" name="audit_logs" value="1" @checked($settings['audit_logs']) data-lb-master="audit">
-                <span style="font-weight:700; font-size: 15px;">Audit Logs</span>
-            </label>
-            <p class="{{ $sub }}" style="margin-bottom: 12px;">
-                Who did what in the CMS. Untick a whole component, or open it and pick individual events.
-            </p>
-
-            <div data-lb-section="audit" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 10px;">
-                @foreach($groups as $key => $group)
-                    @php
-                        $disabledSet = array_flip($settings['disabled_events']);
-                        $enabledCount = collect($group['events'])->reject(fn ($e) => isset($disabledSet[$e['class']]))->count();
-                        $total = count($group['events']);
-                    @endphp
-                    <details style="border:1px solid var(--lb-border, rgba(128,128,128,.25)); border-radius:8px; padding: 8px 12px;" @if($enabledCount < $total) open @endif>
-                        <summary style="cursor:pointer; display:flex; align-items:center; gap:8px; list-style: none;">
-                            <input type="checkbox" data-lb-group="{{ $key }}"
-                                   @checked($enabledCount === $total)
-                                   onclick="event.stopPropagation();"
-                                   title="Toggle all {{ $group['label'] }} events">
-                            <span style="font-weight:600;">{{ $group['label'] }}</span>
-                            <span class="{{ $sub }}" style="margin-left:auto;" data-lb-group-count="{{ $key }}">{{ $enabledCount }}/{{ $total }}</span>
-                        </summary>
-                        <div style="margin-top: 8px; display:flex; flex-direction:column; gap: 5px;">
-                            @foreach($group['events'] as $event)
-                                <label style="display:flex; gap:6px; align-items:center; cursor:pointer; font-size: 13px;">
-                                    <input type="checkbox" name="events[]" value="{{ $event['class'] }}"
-                                           data-lb-group-member="{{ $key }}"
-                                           @checked(! isset($disabledSet[$event['class']]))>
-                                    <span>{{ $event['label'] }}</span>
+        {{-- Audit logs --}}
+        <section class="lb-settings-section {{ $settings['audit_logs'] ? '' : 'is-off' }}" data-lb-section>
+            <header class="lb-settings-section__head">
+                <label class="lb-switch">
+                    <input type="checkbox" name="audit_logs" value="1" @checked($settings['audit_logs']) data-lb-section-master
+                           aria-label="Capture audit logs">
+                    <span class="lb-switch__track"></span>
+                    <span class="lb-switch__knob"></span>
+                </label>
+                <div class="lb-settings-section__titles">
+                    <h3 class="lb-settings-section__title">Audit Logs</h3>
+                    <p class="lb-settings-section__sub">Who did what in the CMS — switch off a whole component, or open it and pick events.</p>
+                </div>
+            </header>
+            <div class="lb-settings-section__body">
+                <div class="lb-groups">
+                    @php $disabledSet = array_flip($settings['disabled_events']); @endphp
+                    @foreach($groups as $key => $group)
+                        @php
+                            $total = count($group['events']);
+                            $enabledCount = collect($group['events'])->reject(fn ($e) => isset($disabledSet[$e['class']]))->count();
+                        @endphp
+                        <details class="lb-group" @if($enabledCount > 0 && $enabledCount < $total) open @endif>
+                            <summary class="lb-group__summary">
+                                <label class="lb-check lb-check--all" onclick="event.stopPropagation();">
+                                    <input type="checkbox" data-lb-group="{{ $key }}"
+                                           @checked($enabledCount === $total)
+                                           aria-label="Toggle all {{ $group['label'] }} events">
                                 </label>
-                            @endforeach
-                        </div>
-                    </details>
-                @endforeach
+                                <span class="lb-group__name">{{ $group['label'] }}</span>
+                                <span class="lb-group__count" data-lb-group-count="{{ $key }}">{{ $enabledCount }}/{{ $total }}</span>
+                                <svg class="lb-group__chev" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                                    <path d="M4.5 2.5L8 6l-3.5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </summary>
+                            <div class="lb-group__events">
+                                @foreach($group['events'] as $event)
+                                    <label class="lb-check">
+                                        <input type="checkbox" name="events[]" value="{{ $event['class'] }}"
+                                               data-lb-group-member="{{ $key }}"
+                                               @checked(! isset($disabledSet[$event['class']]))>
+                                        {{ $event['label'] }}
+                                    </label>
+                                @endforeach
+                            </div>
+                        </details>
+                    @endforeach
+                </div>
+
+                <label class="lb-check">
+                    <input type="checkbox" name="activity_views" value="1" @checked($settings['activity_views'])>
+                    <span>
+                        <strong>Page views</strong>
+                        <span class="lb-field__help">&nbsp;— also record who opened which entry, collection, user… (higher volume)</span>
+                    </span>
+                </label>
+
+                <div class="lb-field">
+                    <label class="lb-field__label" for="lb-ignore-fields">Ignored fields</label>
+                    <input id="lb-ignore-fields" type="text" name="ignore_fields_extra"
+                           value="{{ $settings['ignore_fields_extra'] }}"
+                           placeholder="e.g. internal_notes, cache_key" class="lb-input lb-field-md">
+                    <p class="lb-field__help">Comma-separated field names left out of change diffs, on top of the defaults.</p>
+                </div>
             </div>
+        </section>
 
-            <label style="display:flex; gap:8px; align-items:flex-start; cursor:pointer; margin-top: 12px;">
-                <input type="checkbox" name="activity_views" value="1" @checked($settings['activity_views']) style="margin-top:3px;">
-                <span><strong>Page views</strong><br>
-                    <span class="{{ $sub }}">Also record who opened which entry, collection, user… (higher volume).</span>
-                </span>
-            </label>
+        {{-- Housekeeping --}}
+        <section class="lb-settings-section">
+            <header class="lb-settings-section__head">
+                <div class="lb-settings-section__titles">
+                    <h3 class="lb-settings-section__title">Housekeeping</h3>
+                    <p class="lb-settings-section__sub">Retention and storage status.</p>
+                </div>
+            </header>
+            <div class="lb-settings-section__body">
+                <div class="lb-field">
+                    <label class="lb-field__label" for="lb-retention">Keep logs for</label>
+                    <div class="lb-row">
+                        <input id="lb-retention" type="number" name="retention_days" min="1" max="3650"
+                               value="{{ $settings['retention_days'] }}" class="lb-input lb-field-sm">
+                        <span class="lb-savebar__note">days — older rows are removed by Prune.</span>
+                    </div>
+                </div>
 
-            <label style="display:block; margin-top: 12px;">
-                <span style="font-weight:600;">Extra ignored fields</span>
-                <input type="text" name="ignore_fields_extra" value="{{ $settings['ignore_fields_extra'] }}"
-                       placeholder="e.g. internal_notes,cache_key" class="lb-input" style="width:100%; max-width:420px; margin-top:4px;">
-                <span class="{{ $sub }}">Comma-separated field names to leave out of change diffs.</span>
-            </label>
-        </div>
+                <div class="lb-status-line">
+                    <span class="lb-status-line__item">
+                        <span class="lb-dot {{ $dbOk ? 'lb-dot--ok' : 'lb-dot--warn' }}" aria-hidden="true"></span>
+                        Database {{ $dbOk ? 'connected' : 'unreachable' }}
+                    </span>
+                    <span class="lb-status-line__item">
+                        <span class="lb-dot {{ $installed ? 'lb-dot--ok' : 'lb-dot--warn' }}" aria-hidden="true"></span>
+                        Tables {{ $installed ? 'installed' : 'missing' }}
+                    </span>
+                </div>
+            </div>
+        </section>
 
-        {{-- ---------------- Housekeeping ---------------- --}}
-        <div style="{{ $card }}">
-            <p style="font-weight: 700; margin-bottom: 8px;">Housekeeping</p>
-            <label>
-                <span style="font-weight:600;">Keep logs for</span>
-                <input type="number" name="retention_days" min="1" max="3650" value="{{ $settings['retention_days'] }}"
-                       class="lb-input" style="width: 100px; margin: 0 6px;"> days
-                <br><span class="{{ $sub }}">Older rows are removed by Prune.</span>
-            </label>
-            <p class="{{ $sub }}" style="margin-top: 10px;">
-                Database: {{ $dbOk ? '✅ connected' : '⚠️ unreachable' }} · Tables: {{ $installed ? '✅ installed' : '⚠️ missing' }}
-            </p>
-        </div>
-
-        <div style="display:flex; align-items:center; gap: 12px;">
-            <button type="submit" class="lb-btn" style="font-weight: 700;">Save settings</button>
-            <span class="{{ $sub }}">Stored in the Logbook database — applies on the next page load.</span>
+        <div class="lb-savebar">
+            <button type="submit" class="lb-btn lb-btn--primary">Save settings</button>
+            <span class="lb-savebar__note">Stored in the Logbook database — no .env changes.</span>
         </div>
     </form>
 
-    {{-- Group toggle behaviour: the group checkbox checks/unchecks its
-         members; member changes update the group state + count. Utility
-         pages render as normal Blade (unlike widgets), so an inline
-         script is safe here. --}}
+    {{-- Group tri-state sync + section dimming. Utility pages render as
+         normal Blade (unlike widgets), so an inline script is safe here. --}}
     <script>
     (function () {
         'use strict';
+
+        // Master switches dim their section body.
+        document.querySelectorAll('[data-lb-section]').forEach(function (section) {
+            var master = section.querySelector('[data-lb-section-master]');
+            if (!master) return;
+            master.addEventListener('change', function () {
+                section.classList.toggle('is-off', !master.checked);
+            });
+        });
+
+        // Group checkbox ⇄ member checkboxes, with indeterminate + count.
         document.querySelectorAll('[data-lb-group]').forEach(function (groupBox) {
             var key = groupBox.getAttribute('data-lb-group');
             var members = document.querySelectorAll('[data-lb-group-member="' + key + '"]');
