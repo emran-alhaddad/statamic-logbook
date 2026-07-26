@@ -120,6 +120,12 @@ return [
         'max_value_length' => (int) env('LOGBOOK_AUDIT_MAX_VALUE_LENGTH', 2000),
     ],
 
+    // CP page-view activity ("who opened what"). Off by default; usually
+    // managed from the CP settings page rather than env.
+    'activity' => [
+        'enabled' => (bool) env('LOGBOOK_ACTIVITY_ENABLED', false),
+    ],
+
     'retention_days' => (int) env('LOGBOOK_RETENTION_DAYS', 365),
 
     'ingest' => [

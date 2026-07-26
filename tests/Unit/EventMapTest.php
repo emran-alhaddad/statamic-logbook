@@ -72,6 +72,45 @@ final class EventMapTest extends TestCase
         $this->assertSame(EventMap::curatedEvents(6), EventMap::curatedEvents(999));
     }
 
+    /**
+     * Every curated event must belong to exactly one settings group —
+     * otherwise the CP settings page could never switch it off.
+     */
+    public function test_group_partition_covers_the_curated_list_exactly(): void
+    {
+        $partition = EventMap::groupPartition();
+
+        $all = array_merge(...array_values($partition));
+        $this->assertSame(count($all), count(array_unique($all)), 'An event appears in more than one group');
+
+        $curated = self::rawCurated();
+        sort($all);
+        sort($curated);
+
+        $this->assertSame($curated, $all, 'Group partition must cover the curated list exactly (no missing, no extra)');
+    }
+
+    public function test_events_for_groups_resolves_and_ignores_unknown_keys(): void
+    {
+        $this->assertContains('Statamic\\Events\\AssetUploaded', EventMap::eventsForGroups(['assets']));
+        $this->assertNotContains('Statamic\\Events\\EntrySaved', EventMap::eventsForGroups(['assets']));
+        $this->assertSame([], EventMap::eventsForGroups(['nope']));
+        $this->assertSame([], EventMap::eventsForGroups([]));
+    }
+
+    /**
+     * The raw curated list WITHOUT class_exists filtering, so the partition
+     * test also covers events absent from the installed Statamic version.
+     *
+     * @return list<string>
+     */
+    private static function rawCurated(): array
+    {
+        $const = new \ReflectionClassConstant(EventMap::class, 'CURATED');
+
+        return array_values($const->getValue());
+    }
+
     public function test_curated_and_excluded_lists_do_not_overlap(): void
     {
         $overlap = array_intersect(EventMap::curatedEvents(6), EventMap::excludedEvents(6));

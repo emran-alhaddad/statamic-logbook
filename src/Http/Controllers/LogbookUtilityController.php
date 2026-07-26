@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use EmranAlhaddad\StatamicLogbook\Support\AuditActionPresenter;
 use EmranAlhaddad\StatamicLogbook\Support\DbConnectionResolver;
+use EmranAlhaddad\StatamicLogbook\Support\SettingsRepository;
 use EmranAlhaddad\StatamicLogbook\Support\UserPrefsRepository;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Http\Request;
@@ -16,12 +17,133 @@ class LogbookUtilityController
 {
     public function __invoke(Request $request)
     {
+        if ($this->shouldOnboard($request)) {
+            return redirect()->to(cp_route('utilities.logbook.settings'));
+        }
+
         // default page: system
         return redirect()->to(cp_route('utilities.logbook.system'));
     }
 
+    /**
+     * First-run gate: installed-but-unconfigured installs steer operators
+     * (only users who may configure) into onboarding. Viewers see the
+     * normal pages running on defaults.
+     */
+    private function shouldOnboard(Request $request): bool
+    {
+        if (SettingsRepository::isConfigured()) {
+            return false;
+        }
+
+        try {
+            return (bool) ($request->user()?->can('configure logbook') ?? false);
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * Settings page. Doubles as the onboarding wizard while the addon is
+     * not yet configured.
+     */
+    public function settings(Request $request)
+    {
+        $installed = SettingsRepository::isInstalled();
+        $dbOk = false;
+        $dbError = null;
+
+        try {
+            DB::connection(DbConnectionResolver::resolve())->select('select 1');
+            $dbOk = true;
+        } catch (Throwable $e) {
+            $dbError = mb_substr($e->getMessage(), 0, 200);
+        }
+
+        return view('statamic-logbook::cp.logbook.settings', [
+            'settings' => SettingsRepository::current(),
+            'groups' => SettingsRepository::groups(),
+            'presets' => SettingsRepository::presets(),
+            'configured' => SettingsRepository::isConfigured(),
+            'installed' => $installed,
+            'dbOk' => $dbOk,
+            'dbError' => $dbError,
+            'saved' => (bool) $request->session()->get('logbook_settings_saved', false),
+            'installOutput' => (string) $request->session()->get('logbook_install_output', ''),
+        ]);
+    }
+
+    /**
+     * Persist the settings form. The payload is built explicitly from the
+     * request so an unchecked checkbox reads as false (absent keys must
+     * not fall back to defaults).
+     */
+    public function saveSettings(Request $request)
+    {
+        $groups = [];
+        foreach (array_keys(SettingsRepository::groups()) as $g) {
+            $groups[$g] = $request->boolean("groups.{$g}");
+        }
+
+        $ok = SettingsRepository::save([
+            'configured' => true,
+            'system_logs' => $request->boolean('system_logs'),
+            'audit_logs' => $request->boolean('audit_logs'),
+            'auth_events' => $request->boolean('auth_events'),
+            'activity_views' => $request->boolean('activity_views'),
+            'groups' => $groups,
+            'retention_days' => (int) $request->input('retention_days', 365),
+            'ignore_fields_extra' => (string) $request->input('ignore_fields_extra', ''),
+        ]);
+
+        return redirect()
+            ->to(cp_route('utilities.logbook.settings'))
+            ->with('logbook_settings_saved', $ok);
+    }
+
+    /**
+     * Onboarding: apply a preset and mark the addon configured.
+     */
+    public function completeOnboarding(Request $request)
+    {
+        $presets = SettingsRepository::presets();
+        $choice = (string) $request->input('preset', 'recommended');
+        $preset = $presets[$choice] ?? $presets['recommended'];
+
+        SettingsRepository::save($preset['settings']);
+
+        return redirect()
+            ->to(cp_route('utilities.logbook.settings'))
+            ->with('logbook_settings_saved', true);
+    }
+
+    /**
+     * Create / repair the logbook tables from the CP (wraps logbook:install).
+     */
+    public function runInstall(Request $request)
+    {
+        $output = '';
+
+        try {
+            Artisan::call('logbook:install');
+            $output = trim(Artisan::output());
+        } catch (Throwable $e) {
+            $output = 'Install failed: '.mb_substr($e->getMessage(), 0, 300);
+        }
+
+        SettingsRepository::resetCache();
+
+        return redirect()
+            ->to(cp_route('utilities.logbook.settings'))
+            ->with('logbook_install_output', $output);
+    }
+
     public function system(Request $request)
     {
+        if ($this->shouldOnboard($request)) {
+            return redirect()->to(cp_route('utilities.logbook.settings'));
+        }
+
         $conn = DbConnectionResolver::resolve();
 
         $q = DB::connection($conn)->table('logbook_system_logs');
@@ -68,6 +190,10 @@ class LogbookUtilityController
 
     public function audit(Request $request)
     {
+        if ($this->shouldOnboard($request)) {
+            return redirect()->to(cp_route('utilities.logbook.settings'));
+        }
+
         $conn = DbConnectionResolver::resolve();
 
         $q = DB::connection($conn)->table('logbook_audit_logs');
@@ -142,6 +268,10 @@ class LogbookUtilityController
      */
     public function timeline(Request $request)
     {
+        if ($this->shouldOnboard($request)) {
+            return redirect()->to(cp_route('utilities.logbook.settings'));
+        }
+
         $conn = DbConnectionResolver::resolve();
 
         $from = $request->get('from');

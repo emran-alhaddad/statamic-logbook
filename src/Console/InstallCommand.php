@@ -27,6 +27,7 @@ class InstallCommand extends Command
         $this->createSystemLogsTable($connection);
         $this->createAuditLogsTable($connection);
         $this->createUserPrefsTable($connection);
+        $this->createSettingsTable($connection);
 
         $this->info('✅ Statamic Logbook installation completed successfully.');
         return self::SUCCESS;
@@ -182,6 +183,28 @@ class InstallCommand extends Command
             // as the natural primary so we don't need a surrogate id.
             $table->string('user_id', 36)->primary();
             $table->json('prefs')->nullable();
+            $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
+        });
+
+        $this->info("• created {$table}");
+    }
+
+    /**
+     * CP-managed addon settings (see Support/SettingsRepository). One JSON
+     * blob per key; currently a single 'settings' row.
+     */
+    protected function createSettingsTable(string $connection): void
+    {
+        $table = 'logbook_settings';
+
+        if ($this->safeHasTable($connection, $table)) {
+            $this->line("• {$table} already exists");
+            return;
+        }
+
+        Schema::connection($connection)->create($table, function (Blueprint $table) {
+            $table->string('key', 64)->primary();
+            $table->json('value')->nullable();
             $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
         });
 

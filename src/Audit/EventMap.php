@@ -192,6 +192,96 @@ final class EventMap
     ];
 
     /**
+     * Partition of CURATED into the operator-facing groups that the CP
+     * settings page toggles. Every curated event MUST appear in exactly
+     * one group (EventMapTest asserts the partition is exact) — a curated
+     * event outside any group could never be switched off from the UI.
+     *
+     * @var array<string, list<string>>
+     */
+    private const GROUPS = [
+        'content' => [
+            'Statamic\\Events\\EntryCreated',
+            'Statamic\\Events\\EntrySaved',
+            'Statamic\\Events\\EntryDeleted',
+            'Statamic\\Events\\EntryScheduleReached',
+            'Statamic\\Events\\CollectionCreated',
+            'Statamic\\Events\\CollectionSaved',
+            'Statamic\\Events\\CollectionDeleted',
+            'Statamic\\Events\\CollectionTreeSaved',
+            'Statamic\\Events\\CollectionTreeDeleted',
+            'Statamic\\Events\\TaxonomyCreated',
+            'Statamic\\Events\\TaxonomySaved',
+            'Statamic\\Events\\TaxonomyDeleted',
+            'Statamic\\Events\\TermCreated',
+            'Statamic\\Events\\TermSaved',
+            'Statamic\\Events\\TermDeleted',
+            'Statamic\\Events\\GlobalSetCreated',
+            'Statamic\\Events\\GlobalSetSaved',
+            'Statamic\\Events\\GlobalSetDeleted',
+            'Statamic\\Events\\GlobalVariablesSaved',
+            'Statamic\\Events\\NavCreated',
+            'Statamic\\Events\\NavSaved',
+            'Statamic\\Events\\NavDeleted',
+            'Statamic\\Events\\NavTreeSaved',
+            'Statamic\\Events\\NavTreeDeleted',
+        ],
+        'assets' => [
+            'Statamic\\Events\\AssetUploaded',
+            'Statamic\\Events\\AssetReuploaded',
+            'Statamic\\Events\\AssetReplaced',
+            'Statamic\\Events\\AssetSaved',
+            'Statamic\\Events\\AssetDeleted',
+            'Statamic\\Events\\AssetFolderSaved',
+            'Statamic\\Events\\AssetFolderDeleted',
+            'Statamic\\Events\\AssetContainerCreated',
+            'Statamic\\Events\\AssetContainerSaved',
+            'Statamic\\Events\\AssetContainerDeleted',
+        ],
+        'schema' => [
+            'Statamic\\Events\\BlueprintCreated',
+            'Statamic\\Events\\BlueprintSaved',
+            'Statamic\\Events\\BlueprintDeleted',
+            'Statamic\\Events\\BlueprintReset',
+            'Statamic\\Events\\FieldsetCreated',
+            'Statamic\\Events\\FieldsetSaved',
+            'Statamic\\Events\\FieldsetDeleted',
+            'Statamic\\Events\\FieldsetReset',
+        ],
+        'forms' => [
+            'Statamic\\Events\\FormCreated',
+            'Statamic\\Events\\FormSaved',
+            'Statamic\\Events\\FormDeleted',
+            'Statamic\\Events\\FormSubmitted',
+            'Statamic\\Events\\SubmissionDeleted',
+        ],
+        'users' => [
+            'Statamic\\Events\\UserCreated',
+            'Statamic\\Events\\UserSaved',
+            'Statamic\\Events\\UserDeleted',
+            'Statamic\\Events\\UserGroupSaved',
+            'Statamic\\Events\\UserGroupDeleted',
+            'Statamic\\Events\\RoleSaved',
+            'Statamic\\Events\\RoleDeleted',
+        ],
+        'security' => [
+            'Statamic\\Events\\UserPasswordChanged',
+            'Statamic\\Events\\ImpersonationStarted',
+            'Statamic\\Events\\ImpersonationEnded',
+            'Statamic\\Events\\TwoFactorAuthenticationEnabled',
+            'Statamic\\Events\\TwoFactorAuthenticationDisabled',
+            'Statamic\\Events\\TwoFactorAuthenticationFailed',
+            'Statamic\\Events\\TwoFactorRecoveryCodeReplaced',
+        ],
+        'system' => [
+            'Statamic\\Events\\SiteCreated',
+            'Statamic\\Events\\SiteSaved',
+            'Statamic\\Events\\SiteDeleted',
+            'Statamic\\Events\\AddonSettingsSaved',
+        ],
+    ];
+
+    /**
      * Fallback major used when the running Statamic version cannot be
      * detected. Kept at the newest supported major so new installs get
      * the richest curated list by default.
@@ -229,6 +319,37 @@ final class EventMap
     public static function excludedEvents(?int $major = null): array
     {
         return array_values(self::EXCLUDE);
+    }
+
+    /**
+     * Event classes belonging to the given operator-facing group keys.
+     * Used by SettingsRepository to translate "group switched off in the
+     * CP" into exclude-list entries. Returns strings, not class_exists-
+     * filtered — string exclusion is safe for absent classes.
+     *
+     * @param  list<string>  $groupKeys
+     * @return list<string>
+     */
+    public static function eventsForGroups(array $groupKeys): array
+    {
+        $out = [];
+        foreach ($groupKeys as $key) {
+            foreach (self::GROUPS[$key] ?? [] as $class) {
+                $out[] = $class;
+            }
+        }
+
+        return array_values(array_unique($out));
+    }
+
+    /**
+     * The full group partition, for tests and UI introspection.
+     *
+     * @return array<string, list<string>>
+     */
+    public static function groupPartition(): array
+    {
+        return self::GROUPS;
     }
 
     /**

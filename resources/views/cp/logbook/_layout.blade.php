@@ -56,6 +56,13 @@
                class="lb-tab {{ $active === 'timeline' ? 'lb-tab--active' : '' }}">
                 Timeline
             </a>
+            @can('configure logbook')
+                <a href="{{ cp_route('utilities.logbook.settings') }}"
+                   class="lb-tab {{ ($active ?? '') === 'settings' ? 'lb-tab--active' : '' }}"
+                   style="margin-left: auto;">
+                    Settings
+                </a>
+            @endcan
         </nav>
 
         <div class="lb-panel-body" v-pre>

@@ -163,6 +163,11 @@ class LogbookServiceProvider extends AddonServiceProvider
             FlushSpoolCommand::class,
         ]);
 
+        // CP-managed settings override env/file config. MUST run before the
+        // subscriber / log handler / middleware read config below. Fails
+        // soft: an unreachable logbook DB leaves file config authoritative.
+        \EmranAlhaddad\StatamicLogbook\Support\SettingsRepository::applyToConfig();
+
         $this->registerCpMiddleware();
         $this->registerAuditSubscriber();
         $this->registerSystemLogs();
@@ -320,6 +325,7 @@ class LogbookServiceProvider extends AddonServiceProvider
     {
         Permission::register('view logbook')->label('View Logbook');
         Permission::register('export logbook')->label('Export Logbook');
+        Permission::register('configure logbook')->label('Configure Logbook');
     }
 
     protected function registerCpMiddleware(): void
@@ -330,6 +336,14 @@ class LogbookServiceProvider extends AddonServiceProvider
 
         try {
             Route::pushMiddlewareToGroup('statamic.cp', LogbookRequestContext::class);
+
+            // Page-view tracking. Registered unconditionally but internally
+            // gated on config('logbook.activity.enabled') per request, so
+            // toggling it in CP settings needs no cache rebuild.
+            Route::pushMiddlewareToGroup(
+                'statamic.cp',
+                \EmranAlhaddad\StatamicLogbook\Http\Middleware\LogCpPageViews::class
+            );
         } catch (\Throwable) {
             // Middleware group may not exist yet in some test kernels.
         }
@@ -372,6 +386,30 @@ class LogbookServiceProvider extends AddonServiceProvider
                     $router->get('/audit/export.csv', [LogbookUtilityController::class, 'exportAuditCsv'])
                         ->name('audit.export')
                         ->middleware('can:export logbook');
+
+                    // CP-managed settings + first-run onboarding. Gated on
+                    // Statamic's `configure utilities` super-ish permission
+                    // via our own 'configure logbook' permission.
+                    $router->get('/settings', [LogbookUtilityController::class, 'settings'])
+                        ->name('settings')
+                        ->middleware('can:configure logbook');
+
+                    // Alias for the singular form.
+                    $router->get('/setting', fn () => redirect()->to(cp_route('utilities.logbook.settings')))
+                        ->name('setting')
+                        ->middleware('can:configure logbook');
+
+                    $router->post('/settings', [LogbookUtilityController::class, 'saveSettings'])
+                        ->name('settings.save')
+                        ->middleware('can:configure logbook');
+
+                    $router->post('/settings/install', [LogbookUtilityController::class, 'runInstall'])
+                        ->name('settings.install')
+                        ->middleware('can:configure logbook');
+
+                    $router->post('/settings/onboard', [LogbookUtilityController::class, 'completeOnboarding'])
+                        ->name('settings.onboard')
+                        ->middleware('can:configure logbook');
 
                     $router->post('/actions/prune', [LogbookUtilityController::class, 'runPrune'])
                         ->name('actions.prune')

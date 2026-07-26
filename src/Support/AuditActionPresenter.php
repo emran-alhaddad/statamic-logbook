@@ -161,6 +161,20 @@ class AuditActionPresenter
         'statamic.form.deleted'   => 'Form deleted',
         'statamic.submission.deleted' => 'Submission deleted',
 
+        // --- CP page views (activity tracking, optional) --------------------
+        'statamic.dashboard.viewed'       => 'Dashboard opened',
+        'statamic.collection.viewed'      => 'Collection opened',
+        'statamic.entry.viewed'           => 'Entry opened',
+        'statamic.taxonomy.viewed'        => 'Taxonomy opened',
+        'statamic.term.viewed'            => 'Term opened',
+        'statamic.nav.viewed'             => 'Navigation opened',
+        'statamic.globals.viewed'         => 'Globals opened',
+        'statamic.asset_container.viewed' => 'Assets browsed',
+        'statamic.user.viewed'            => 'User profile opened',
+        'statamic.user_listing.viewed'    => 'User list opened',
+        'statamic.form.viewed'            => 'Form opened',
+        'statamic.submission.viewed'      => 'Submission opened',
+
         // --- Catch-all fallback used when no specific mapping matched ------
         'statamic.statamic.event' => 'Statamic event',
     ];
