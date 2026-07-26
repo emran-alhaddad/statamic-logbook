@@ -73,29 +73,53 @@ final class EventMapTest extends TestCase
     }
 
     /**
-     * Every curated event must belong to exactly one settings group —
-     * otherwise the CP settings page could never switch it off.
+     * Every audited event must belong to exactly one settings group —
+     * otherwise the CP settings page could never switch it off. The
+     * partition covers the curated Statamic events PLUS the Laravel auth
+     * events the subscriber records (Login/Logout/Failed/PasswordReset).
      */
-    public function test_group_partition_covers_the_curated_list_exactly(): void
+    public function test_group_partition_covers_every_audited_event_exactly_once(): void
     {
         $partition = EventMap::groupPartition();
 
         $all = array_merge(...array_values($partition));
         $this->assertSame(count($all), count(array_unique($all)), 'An event appears in more than one group');
 
-        $curated = self::rawCurated();
+        $expected = array_merge(self::rawCurated(), [
+            'Illuminate\\Auth\\Events\\Login',
+            'Illuminate\\Auth\\Events\\Logout',
+            'Illuminate\\Auth\\Events\\Failed',
+            'Illuminate\\Auth\\Events\\PasswordReset',
+        ]);
         sort($all);
-        sort($curated);
+        sort($expected);
 
-        $this->assertSame($curated, $all, 'Group partition must cover the curated list exactly (no missing, no extra)');
+        $this->assertSame($expected, $all, 'Group partition must cover curated + auth events exactly (no missing, no extra)');
     }
 
     public function test_events_for_groups_resolves_and_ignores_unknown_keys(): void
     {
         $this->assertContains('Statamic\\Events\\AssetUploaded', EventMap::eventsForGroups(['assets']));
         $this->assertNotContains('Statamic\\Events\\EntrySaved', EventMap::eventsForGroups(['assets']));
+        $this->assertContains('Illuminate\\Auth\\Events\\Login', EventMap::eventsForGroups(['users']));
         $this->assertSame([], EventMap::eventsForGroups(['nope']));
         $this->assertSame([], EventMap::eventsForGroups([]));
+    }
+
+    public function test_event_labels_are_human_readable(): void
+    {
+        $this->assertSame('Entry saved', EventMap::eventLabel('Statamic\\Events\\EntrySaved'));
+        $this->assertSame('Signed in', EventMap::eventLabel('Illuminate\\Auth\\Events\\Login'));
+        $this->assertSame('Recovery code used', EventMap::eventLabel('Statamic\\Events\\TwoFactorRecoveryCodeReplaced'));
+
+        // Every partitioned event must produce a non-classname label.
+        foreach (EventMap::groupPartition() as $events) {
+            foreach ($events as $class) {
+                $label = EventMap::eventLabel($class);
+                $this->assertStringNotContainsString('\\', $label);
+                $this->assertNotSame('', $label);
+            }
+        }
     }
 
     /**

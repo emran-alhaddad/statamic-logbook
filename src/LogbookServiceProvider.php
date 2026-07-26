@@ -305,6 +305,13 @@ class LogbookServiceProvider extends AddonServiceProvider
         $channel = (string) ($event->channel ?? '');
         $message = (string) $event->message;
 
+        // CP settings can restrict which levels are captured. An absent /
+        // empty list means "all levels" (backwards compatible).
+        $captureLevels = (array) config('logbook.system_logs.capture_levels', []);
+        if ($captureLevels !== [] && ! in_array(strtolower((string) $event->level), $captureLevels, true)) {
+            return true;
+        }
+
         $ignoredChannels = array_map('strtolower', (array) config('logbook.system_logs.ignore_channels', [
             'deprecations',
         ]));
@@ -407,8 +414,8 @@ class LogbookServiceProvider extends AddonServiceProvider
                         ->name('settings.install')
                         ->middleware('can:configure logbook');
 
-                    $router->post('/settings/onboard', [LogbookUtilityController::class, 'completeOnboarding'])
-                        ->name('settings.onboard')
+                    $router->post('/settings/database', [LogbookUtilityController::class, 'saveDbConfig'])
+                        ->name('settings.database')
                         ->middleware('can:configure logbook');
 
                     $router->post('/actions/prune', [LogbookUtilityController::class, 'runPrune'])

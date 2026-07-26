@@ -192,39 +192,48 @@ final class EventMap
     ];
 
     /**
-     * Partition of CURATED into the operator-facing groups that the CP
-     * settings page toggles. Every curated event MUST appear in exactly
-     * one group (EventMapTest asserts the partition is exact) — a curated
-     * event outside any group could never be switched off from the UI.
+     * Partition of CURATED into per-component groups — one group per CMS
+     * component, mirroring how operators think about the CP. Every curated
+     * event MUST appear in exactly one group (EventMapTest asserts the
+     * partition is exact) — a curated event outside any group could never
+     * be switched off from the settings UI.
      *
      * @var array<string, list<string>>
      */
     private const GROUPS = [
-        'content' => [
+        'entries' => [
             'Statamic\\Events\\EntryCreated',
             'Statamic\\Events\\EntrySaved',
             'Statamic\\Events\\EntryDeleted',
             'Statamic\\Events\\EntryScheduleReached',
+        ],
+        'collections' => [
             'Statamic\\Events\\CollectionCreated',
             'Statamic\\Events\\CollectionSaved',
             'Statamic\\Events\\CollectionDeleted',
             'Statamic\\Events\\CollectionTreeSaved',
             'Statamic\\Events\\CollectionTreeDeleted',
+        ],
+        'taxonomies' => [
             'Statamic\\Events\\TaxonomyCreated',
             'Statamic\\Events\\TaxonomySaved',
             'Statamic\\Events\\TaxonomyDeleted',
             'Statamic\\Events\\TermCreated',
             'Statamic\\Events\\TermSaved',
             'Statamic\\Events\\TermDeleted',
-            'Statamic\\Events\\GlobalSetCreated',
-            'Statamic\\Events\\GlobalSetSaved',
-            'Statamic\\Events\\GlobalSetDeleted',
-            'Statamic\\Events\\GlobalVariablesSaved',
+        ],
+        'navigation' => [
             'Statamic\\Events\\NavCreated',
             'Statamic\\Events\\NavSaved',
             'Statamic\\Events\\NavDeleted',
             'Statamic\\Events\\NavTreeSaved',
             'Statamic\\Events\\NavTreeDeleted',
+        ],
+        'globals' => [
+            'Statamic\\Events\\GlobalSetCreated',
+            'Statamic\\Events\\GlobalSetSaved',
+            'Statamic\\Events\\GlobalSetDeleted',
+            'Statamic\\Events\\GlobalVariablesSaved',
         ],
         'assets' => [
             'Statamic\\Events\\AssetUploaded',
@@ -238,7 +247,7 @@ final class EventMap
             'Statamic\\Events\\AssetContainerSaved',
             'Statamic\\Events\\AssetContainerDeleted',
         ],
-        'schema' => [
+        'blueprints' => [
             'Statamic\\Events\\BlueprintCreated',
             'Statamic\\Events\\BlueprintSaved',
             'Statamic\\Events\\BlueprintDeleted',
@@ -263,8 +272,6 @@ final class EventMap
             'Statamic\\Events\\UserGroupDeleted',
             'Statamic\\Events\\RoleSaved',
             'Statamic\\Events\\RoleDeleted',
-        ],
-        'security' => [
             'Statamic\\Events\\UserPasswordChanged',
             'Statamic\\Events\\ImpersonationStarted',
             'Statamic\\Events\\ImpersonationEnded',
@@ -272,13 +279,42 @@ final class EventMap
             'Statamic\\Events\\TwoFactorAuthenticationDisabled',
             'Statamic\\Events\\TwoFactorAuthenticationFailed',
             'Statamic\\Events\\TwoFactorRecoveryCodeReplaced',
+            // Laravel auth events (recorded by the subscriber alongside
+            // Statamic events): sign-in / sign-out / failed / reset.
+            'Illuminate\\Auth\\Events\\Login',
+            'Illuminate\\Auth\\Events\\Logout',
+            'Illuminate\\Auth\\Events\\Failed',
+            'Illuminate\\Auth\\Events\\PasswordReset',
         ],
-        'system' => [
+        'sites' => [
             'Statamic\\Events\\SiteCreated',
             'Statamic\\Events\\SiteSaved',
             'Statamic\\Events\\SiteDeleted',
             'Statamic\\Events\\AddonSettingsSaved',
         ],
+    ];
+
+    /**
+     * Human labels for events whose humanised class basename reads badly.
+     *
+     * @var array<string, string>
+     */
+    private const EVENT_LABELS = [
+        'Illuminate\\Auth\\Events\\Login' => 'Signed in',
+        'Illuminate\\Auth\\Events\\Logout' => 'Signed out',
+        'Illuminate\\Auth\\Events\\Failed' => 'Failed sign-in attempt',
+        'Illuminate\\Auth\\Events\\PasswordReset' => 'Password reset',
+        'Statamic\\Events\\EntryScheduleReached' => 'Scheduled entry published',
+        'Statamic\\Events\\CollectionTreeSaved' => 'Pages reordered',
+        'Statamic\\Events\\CollectionTreeDeleted' => 'Page tree deleted',
+        'Statamic\\Events\\NavTreeSaved' => 'Nav contents saved',
+        'Statamic\\Events\\NavTreeDeleted' => 'Nav contents deleted',
+        'Statamic\\Events\\GlobalVariablesSaved' => 'Global content edited',
+        'Statamic\\Events\\TwoFactorAuthenticationEnabled' => 'Two-factor enabled',
+        'Statamic\\Events\\TwoFactorAuthenticationDisabled' => 'Two-factor disabled',
+        'Statamic\\Events\\TwoFactorAuthenticationFailed' => 'Failed two-factor attempt',
+        'Statamic\\Events\\TwoFactorRecoveryCodeReplaced' => 'Recovery code used',
+        'Statamic\\Events\\AddonSettingsSaved' => 'Addon settings saved',
     ];
 
     /**
@@ -350,6 +386,22 @@ final class EventMap
     public static function groupPartition(): array
     {
         return self::GROUPS;
+    }
+
+    /**
+     * Human label for an event class, for the settings UI.
+     * "Statamic\Events\EntrySaved" → "Entry saved".
+     */
+    public static function eventLabel(string $class): string
+    {
+        if (isset(self::EVENT_LABELS[$class])) {
+            return self::EVENT_LABELS[$class];
+        }
+
+        $name = basename(str_replace('\\', '/', $class));
+        $words = preg_split('/(?=[A-Z])/', $name, -1, PREG_SPLIT_NO_EMPTY) ?: [$name];
+
+        return ucfirst(strtolower(implode(' ', $words)));
     }
 
     /**

@@ -293,8 +293,12 @@ class StatamicAuditSubscriber
             return;
         }
 
+        // The CP settings page disables individual auth events through the
+        // same exclude list as Statamic events.
+        $excluded = array_fill_keys($this->excludedEventClasses(), true);
+
         foreach (self::AUTH_EVENTS as $class => $action) {
-            if (! class_exists($class)) {
+            if (! class_exists($class) || isset($excluded[$class])) {
                 continue;
             }
 

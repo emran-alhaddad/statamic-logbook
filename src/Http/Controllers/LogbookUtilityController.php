@@ -21,8 +21,16 @@ class LogbookUtilityController
             return redirect()->to(cp_route('utilities.logbook.settings'));
         }
 
-        // default page: system
-        return redirect()->to(cp_route('utilities.logbook.system'));
+        // Land on the first enabled stream; settings when both are off.
+        $streams = SettingsRepository::streams();
+        if ($streams['system']) {
+            return redirect()->to(cp_route('utilities.logbook.system'));
+        }
+        if ($streams['audit']) {
+            return redirect()->to(cp_route('utilities.logbook.audit'));
+        }
+
+        return redirect()->to(cp_route('utilities.logbook.settings'));
     }
 
     /**
@@ -44,8 +52,9 @@ class LogbookUtilityController
     }
 
     /**
-     * Settings page. Doubles as the onboarding wizard while the addon is
-     * not yet configured.
+     * Settings page. While the addon is not yet configured it renders the
+     * first-run DB setup screen instead (prefilled from .env, editable,
+     * install button) — after that, the full capture settings.
      */
     public function settings(Request $request)
     {
@@ -60,40 +69,148 @@ class LogbookUtilityController
             $dbError = mb_substr($e->getMessage(), 0, 200);
         }
 
+        $groups = [];
+        foreach (\EmranAlhaddad\StatamicLogbook\Audit\EventMap::groupPartition() as $key => $events) {
+            $groups[$key] = [
+                'label' => SettingsRepository::groupLabels()[$key] ?? ucfirst($key),
+                'events' => array_map(fn (string $class) => [
+                    'class' => $class,
+                    'label' => \EmranAlhaddad\StatamicLogbook\Audit\EventMap::eventLabel($class),
+                ], $events),
+            ];
+        }
+
         return view('statamic-logbook::cp.logbook.settings', [
             'settings' => SettingsRepository::current(),
-            'groups' => SettingsRepository::groups(),
-            'presets' => SettingsRepository::presets(),
+            'groups' => $groups,
+            'levels' => SettingsRepository::LEVELS,
+            'streams' => SettingsRepository::streams(),
             'configured' => SettingsRepository::isConfigured(),
             'installed' => $installed,
             'dbOk' => $dbOk,
             'dbError' => $dbError,
+            'db' => $this->dbFormDefaults(),
+            'envWritable' => is_file(base_path('.env')) && is_writable(base_path('.env')),
             'saved' => (bool) $request->session()->get('logbook_settings_saved', false),
+            'setupError' => (string) $request->session()->get('logbook_setup_error', ''),
             'installOutput' => (string) $request->session()->get('logbook_install_output', ''),
         ]);
     }
 
     /**
-     * Persist the settings form. The payload is built explicitly from the
-     * request so an unchecked checkbox reads as false (absent keys must
-     * not fall back to defaults).
+     * Current DB form values: saved LOGBOOK_DB_* env when present,
+     * otherwise the app's own default connection — the sensible default
+     * for "just log into my existing database".
+     *
+     * @return array<string, string>
+     */
+    private function dbFormDefaults(): array
+    {
+        $app = (array) config('database.connections.'.config('database.default'), []);
+
+        return [
+            'host' => (string) (env('LOGBOOK_DB_HOST') ?: ($app['host'] ?? '127.0.0.1')),
+            'port' => (string) (env('LOGBOOK_DB_PORT') ?: ($app['port'] ?? '3306')),
+            'database' => (string) (env('LOGBOOK_DB_DATABASE') ?: ($app['database'] ?? '')),
+            'username' => (string) (env('LOGBOOK_DB_USERNAME') ?: ($app['username'] ?? '')),
+            'password' => (string) (env('LOGBOOK_DB_PASSWORD') ?: ($app['password'] ?? '')),
+        ];
+    }
+
+    /**
+     * First-run setup: persist the DB credentials to .env, connect using
+     * the submitted values (the running process still has the old env),
+     * create the tables, and mark the addon configured.
+     */
+    public function saveDbConfig(Request $request)
+    {
+        $db = [
+            'host' => trim((string) $request->input('host', '127.0.0.1')),
+            'port' => trim((string) $request->input('port', '3306')),
+            'database' => trim((string) $request->input('database', '')),
+            'username' => trim((string) $request->input('username', '')),
+            'password' => (string) $request->input('password', ''),
+        ];
+
+        if ($db['database'] === '' || $db['username'] === '') {
+            return redirect()->to(cp_route('utilities.logbook.settings'))
+                ->with('logbook_setup_error', 'Database name and username are required.');
+        }
+
+        // Use the submitted values for THIS request — env() still returns
+        // the old values until the next process.
+        config([
+            'logbook.db.connection' => array_merge(
+                (array) config('logbook.db.connection', []),
+                ['driver' => 'mysql'] + $db
+            ),
+        ]);
+
+        try {
+            // Purge any previously-failed connection before retrying.
+            DB::purge('logbook');
+            Artisan::call('logbook:install');
+            $output = trim(Artisan::output());
+        } catch (Throwable $e) {
+            return redirect()->to(cp_route('utilities.logbook.settings'))
+                ->with('logbook_setup_error', 'Could not connect or install: '.mb_substr($e->getMessage(), 0, 300));
+        }
+
+        // Persist for future requests. If .env is not writable the runtime
+        // still works this request; tell the operator what to add.
+        $wrote = \EmranAlhaddad\StatamicLogbook\Support\EnvWriter::write([
+            'LOGBOOK_DB_CONNECTION' => 'mysql',
+            'LOGBOOK_DB_HOST' => $db['host'],
+            'LOGBOOK_DB_PORT' => $db['port'],
+            'LOGBOOK_DB_DATABASE' => $db['database'],
+            'LOGBOOK_DB_USERNAME' => $db['username'],
+            'LOGBOOK_DB_PASSWORD' => $db['password'],
+        ]);
+
+        SettingsRepository::resetCache();
+        $defaults = SettingsRepository::defaults();
+        $defaults['configured'] = true;
+        SettingsRepository::save($defaults);
+
+        return redirect()->to(cp_route('utilities.logbook.settings'))
+            ->with('logbook_settings_saved', true)
+            ->with('logbook_install_output', $output.($wrote ? '' : "\n⚠ .env is not writable — add the LOGBOOK_DB_* keys manually to persist the connection."));
+    }
+
+    /**
+     * Persist the capture settings. Built explicitly from the request so
+     * an unchecked checkbox reads as false, and per-event checkboxes
+     * translate into the disabled_events list.
      */
     public function saveSettings(Request $request)
     {
-        $groups = [];
-        foreach (array_keys(SettingsRepository::groups()) as $g) {
-            $groups[$g] = $request->boolean("groups.{$g}");
+        $levels = [];
+        foreach (SettingsRepository::LEVELS as $level) {
+            $levels[$level] = $request->boolean("levels.{$level}");
+        }
+
+        // Checkboxes arrive as enabled events; everything known that was
+        // NOT checked is disabled.
+        $enabled = array_fill_keys((array) $request->input('events', []), true);
+        $disabled = [];
+        foreach (\EmranAlhaddad\StatamicLogbook\Audit\EventMap::groupPartition() as $events) {
+            foreach ($events as $class) {
+                if (! isset($enabled[$class])) {
+                    $disabled[] = $class;
+                }
+            }
         }
 
         $ok = SettingsRepository::save([
             'configured' => true,
             'system_logs' => $request->boolean('system_logs'),
+            'system_levels' => $levels,
             'audit_logs' => $request->boolean('audit_logs'),
-            'auth_events' => $request->boolean('auth_events'),
+            'disabled_events' => $disabled,
             'activity_views' => $request->boolean('activity_views'),
-            'groups' => $groups,
             'retention_days' => (int) $request->input('retention_days', 365),
             'ignore_fields_extra' => (string) $request->input('ignore_fields_extra', ''),
+            'ignore_channels_extra' => (string) $request->input('ignore_channels_extra', ''),
         ]);
 
         return redirect()
@@ -102,19 +219,14 @@ class LogbookUtilityController
     }
 
     /**
-     * Onboarding: apply a preset and mark the addon configured.
+     * 404 for pages whose log stream is switched off — disabled streams
+     * disappear from tabs AND routes.
      */
-    public function completeOnboarding(Request $request)
+    private function abortUnlessStream(string $stream): void
     {
-        $presets = SettingsRepository::presets();
-        $choice = (string) $request->input('preset', 'recommended');
-        $preset = $presets[$choice] ?? $presets['recommended'];
-
-        SettingsRepository::save($preset['settings']);
-
-        return redirect()
-            ->to(cp_route('utilities.logbook.settings'))
-            ->with('logbook_settings_saved', true);
+        if (! (SettingsRepository::streams()[$stream] ?? true)) {
+            abort(404);
+        }
     }
 
     /**
@@ -140,6 +252,8 @@ class LogbookUtilityController
 
     public function system(Request $request)
     {
+        $this->abortUnlessStream('system');
+
         if ($this->shouldOnboard($request)) {
             return redirect()->to(cp_route('utilities.logbook.settings'));
         }
@@ -190,6 +304,8 @@ class LogbookUtilityController
 
     public function audit(Request $request)
     {
+        $this->abortUnlessStream('audit');
+
         if ($this->shouldOnboard($request)) {
             return redirect()->to(cp_route('utilities.logbook.settings'));
         }
@@ -268,6 +384,11 @@ class LogbookUtilityController
      */
     public function timeline(Request $request)
     {
+        $streams = SettingsRepository::streams();
+        if (! $streams['system'] && ! $streams['audit']) {
+            abort(404);
+        }
+
         if ($this->shouldOnboard($request)) {
             return redirect()->to(cp_route('utilities.logbook.settings'));
         }
@@ -394,6 +515,8 @@ class LogbookUtilityController
      */
     public function systemJson(Request $request): JsonResponse
     {
+        $this->abortUnlessStream('system');
+
         $conn = DbConnectionResolver::resolve();
         $afterId = (int) $request->get('after_id', 0);
         $limit = max(1, min(100, (int) $request->get('limit', 25)));
@@ -438,6 +561,8 @@ class LogbookUtilityController
      */
     public function auditJson(Request $request): JsonResponse
     {
+        $this->abortUnlessStream('audit');
+
         $conn = DbConnectionResolver::resolve();
         $afterId = (int) $request->get('after_id', 0);
         $limit = max(1, min(100, (int) $request->get('limit', 25)));
@@ -524,6 +649,8 @@ class LogbookUtilityController
 
     public function exportSystemCsv(Request $request): StreamedResponse
     {
+        $this->abortUnlessStream('system');
+
         $conn = DbConnectionResolver::resolve();
 
         $q = DB::connection($conn)->table('logbook_system_logs');
@@ -590,6 +717,8 @@ class LogbookUtilityController
 
     public function exportAuditCsv(Request $request): StreamedResponse
     {
+        $this->abortUnlessStream('audit');
+
         $conn = DbConnectionResolver::resolve();
 
         $q = DB::connection($conn)->table('logbook_audit_logs');

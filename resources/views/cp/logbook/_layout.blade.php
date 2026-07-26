@@ -43,19 +43,29 @@
     </div>
 
     <div class="lb-box">
+        @php
+            /** Disabled streams disappear from the tab bar entirely. */
+            $lbStreams = \EmranAlhaddad\StatamicLogbook\Support\SettingsRepository::streams();
+        @endphp
         <nav class="lb-tabs" aria-label="Logbook sections">
-            <a href="{{ cp_route('utilities.logbook.system') }}"
-               class="lb-tab {{ $active === 'system' ? 'lb-tab--active' : '' }}">
-                System Logs
-            </a>
-            <a href="{{ cp_route('utilities.logbook.audit') }}"
-               class="lb-tab {{ $active === 'audit' ? 'lb-tab--active' : '' }}">
-                Audit Logs
-            </a>
-            <a href="{{ cp_route('utilities.logbook.timeline') }}"
-               class="lb-tab {{ $active === 'timeline' ? 'lb-tab--active' : '' }}">
-                Timeline
-            </a>
+            @if($lbStreams['system'])
+                <a href="{{ cp_route('utilities.logbook.system') }}"
+                   class="lb-tab {{ $active === 'system' ? 'lb-tab--active' : '' }}">
+                    System Logs
+                </a>
+            @endif
+            @if($lbStreams['audit'])
+                <a href="{{ cp_route('utilities.logbook.audit') }}"
+                   class="lb-tab {{ $active === 'audit' ? 'lb-tab--active' : '' }}">
+                    Audit Logs
+                </a>
+            @endif
+            @if($lbStreams['system'] || $lbStreams['audit'])
+                <a href="{{ cp_route('utilities.logbook.timeline') }}"
+                   class="lb-tab {{ $active === 'timeline' ? 'lb-tab--active' : '' }}">
+                    Timeline
+                </a>
+            @endif
             @can('configure logbook')
                 <a href="{{ cp_route('utilities.logbook.settings') }}"
                    class="lb-tab {{ ($active ?? '') === 'settings' ? 'lb-tab--active' : '' }}"

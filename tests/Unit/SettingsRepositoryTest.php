@@ -71,17 +71,24 @@ final class SettingsRepositoryTest extends TestCase
         $this->assertSame($before, config('logbook'));
     }
 
+    public function test_streams_fall_back_to_file_config_when_unconfigured(): void
+    {
+        config(['logbook.system_logs.enabled' => false, 'logbook.audit_logs.enabled' => true]);
+
+        $this->assertSame(['system' => false, 'audit' => true], SettingsRepository::streams());
+    }
+
     // ------------------------------------------------------------------
     // Config overlay — CP-saved settings must win over env defaults.
     // ------------------------------------------------------------------
 
-    public function test_apply_to_config_overrides_toggles_and_retention(): void
+    public function test_apply_to_config_overrides_toggles_levels_and_retention(): void
     {
         $this->primeCache([
             'configured' => true,
             'system_logs' => false,
+            'system_levels' => ['error' => true, 'warning' => true] + array_fill_keys(SettingsRepository::LEVELS, false),
             'audit_logs' => true,
-            'auth_events' => false,
             'activity_views' => true,
             'retention_days' => 90,
         ]);
@@ -90,39 +97,53 @@ final class SettingsRepositoryTest extends TestCase
 
         $this->assertFalse(config('logbook.system_logs.enabled'));
         $this->assertTrue(config('logbook.audit_logs.enabled'));
-        $this->assertFalse(config('logbook.audit_logs.auth_events'));
         $this->assertTrue(config('logbook.activity.enabled'));
         $this->assertSame(90, config('logbook.retention_days'));
+        $this->assertSame(['error', 'warning'], array_values(config('logbook.system_logs.capture_levels')));
     }
 
-    public function test_disabled_groups_become_exclude_list_entries(): void
+    public function test_streams_reflect_saved_settings_when_configured(): void
     {
-        $groups = array_fill_keys(array_keys(SettingsRepository::groups()), true);
-        $groups['assets'] = false;
+        $this->primeCache(['configured' => true, 'system_logs' => false, 'audit_logs' => true]);
 
-        $this->primeCache(['configured' => true, 'groups' => $groups]);
+        $this->assertSame(['system' => false, 'audit' => true], SettingsRepository::streams());
+    }
+
+    public function test_disabled_events_become_exclude_list_entries(): void
+    {
+        $this->primeCache([
+            'configured' => true,
+            'disabled_events' => [
+                'Statamic\\Events\\AssetUploaded',
+                'Illuminate\\Auth\\Events\\Login',
+            ],
+        ]);
 
         SettingsRepository::applyToConfig();
 
         $excluded = config('logbook.audit_logs.exclude_events');
-        foreach (EventMap::eventsForGroups(['assets']) as $class) {
-            $this->assertContains($class, $excluded, "{$class} should be excluded when assets group is off");
-        }
-        // An enabled group's events must NOT be excluded.
+        $this->assertContains('Statamic\\Events\\AssetUploaded', $excluded);
+        $this->assertContains('Illuminate\\Auth\\Events\\Login', $excluded);
         $this->assertNotContains('Statamic\\Events\\EntrySaved', $excluded);
     }
 
-    public function test_extra_ignore_fields_merge_into_config(): void
+    public function test_extra_ignore_fields_and_channels_merge_into_config(): void
     {
-        $this->primeCache(['configured' => true, 'ignore_fields_extra' => ' secret_field , internal_notes ']);
+        $this->primeCache([
+            'configured' => true,
+            'ignore_fields_extra' => ' secret_field , internal_notes ',
+            'ignore_channels_extra' => 'queries',
+        ]);
 
         SettingsRepository::applyToConfig();
 
         $fields = config('logbook.audit_logs.ignore_fields');
         $this->assertContains('secret_field', $fields);
         $this->assertContains('internal_notes', $fields);
-        // Shipped defaults survive the merge.
-        $this->assertContains('remember_token', $fields);
+        $this->assertContains('remember_token', $fields, 'shipped defaults survive the merge');
+
+        $this->assertContains('queries', config('logbook.system_logs.ignore_channels'));
+        $this->assertContains('deprecations', config('logbook.system_logs.ignore_channels'));
     }
 
     // ------------------------------------------------------------------
@@ -137,7 +158,7 @@ final class SettingsRepositoryTest extends TestCase
             'system_logs' => '0',
             'audit_logs' => 'true',
             'unknown_key' => 'whatever',
-            'groups' => ['content' => 'on', 'bogus_group' => true],
+            'system_levels' => ['error' => 'on', 'bogus_level' => true],
             'retention_days' => '30',
             'ignore_fields_extra' => str_repeat('x', 5000),
         ]);
@@ -146,10 +167,27 @@ final class SettingsRepositoryTest extends TestCase
         $this->assertFalse($clean['system_logs']);
         $this->assertTrue($clean['audit_logs']);
         $this->assertArrayNotHasKey('unknown_key', $clean);
-        $this->assertArrayNotHasKey('bogus_group', $clean['groups']);
-        $this->assertTrue($clean['groups']['content']);
+        $this->assertArrayNotHasKey('bogus_level', $clean['system_levels']);
+        $this->assertTrue($clean['system_levels']['error']);
         $this->assertSame(30, $clean['retention_days']);
         $this->assertSame(1000, mb_strlen($clean['ignore_fields_extra']));
+    }
+
+    public function test_sanitize_keeps_only_known_event_classes_in_disabled_events(): void
+    {
+        $clean = SettingsRepository::sanitize([
+            'disabled_events' => [
+                'Statamic\\Events\\EntrySaved',      // known
+                'Illuminate\\Auth\\Events\\Logout',  // known (auth pseudo-event)
+                'Evil\\Injected\\Class',             // unknown → dropped
+                12345,                                // not a string → dropped
+            ],
+        ]);
+
+        $this->assertSame(
+            ['Statamic\\Events\\EntrySaved', 'Illuminate\\Auth\\Events\\Logout'],
+            $clean['disabled_events']
+        );
     }
 
     public function test_sanitize_rejects_out_of_range_retention(): void
@@ -159,9 +197,9 @@ final class SettingsRepositoryTest extends TestCase
         $this->assertSame(365, SettingsRepository::sanitize(['retention_days' => 'abc'])['retention_days']);
     }
 
-    public function test_every_group_key_has_ui_metadata_and_vice_versa(): void
+    public function test_group_labels_match_the_event_partition_exactly(): void
     {
-        $uiKeys = array_keys(SettingsRepository::groups());
+        $uiKeys = array_keys(SettingsRepository::groupLabels());
         $partitionKeys = array_keys(EventMap::groupPartition());
 
         sort($uiKeys);
@@ -170,29 +208,16 @@ final class SettingsRepositoryTest extends TestCase
         $this->assertSame($partitionKeys, $uiKeys, 'Settings UI groups and EventMap partition must list the same keys');
     }
 
-    // ------------------------------------------------------------------
-    // Presets — what onboarding installs must always be valid.
-    // ------------------------------------------------------------------
-
-    public function test_presets_are_sanitize_stable_and_marked_configured(): void
+    public function test_defaults_enable_everything_except_page_views(): void
     {
-        foreach (SettingsRepository::presets() as $key => $preset) {
-            $clean = SettingsRepository::sanitize($preset['settings']);
+        $d = SettingsRepository::defaults();
 
-            $this->assertSame($clean, $preset['settings'], "Preset {$key} must already be in canonical shape");
-            $this->assertTrue($clean['configured'], "Preset {$key} must mark the addon configured");
-        }
-    }
-
-    public function test_recommended_preset_captures_all_groups_without_views(): void
-    {
-        $rec = SettingsRepository::presets()['recommended']['settings'];
-
-        $this->assertFalse($rec['activity_views']);
-        $this->assertSame([], array_keys(array_filter($rec['groups'], fn ($on) => ! $on)), 'recommended enables every group');
-
-        $everything = SettingsRepository::presets()['everything']['settings'];
-        $this->assertTrue($everything['activity_views']);
+        $this->assertFalse($d['configured']);
+        $this->assertTrue($d['system_logs']);
+        $this->assertTrue($d['audit_logs']);
+        $this->assertFalse($d['activity_views']);
+        $this->assertSame([], $d['disabled_events']);
+        $this->assertSame([], array_keys(array_filter($d['system_levels'], fn ($on) => ! $on)), 'all levels on by default');
     }
 
     /** Inject settings into the in-process cache, bypassing the DB. */
