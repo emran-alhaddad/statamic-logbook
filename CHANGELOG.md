@@ -13,6 +13,92 @@ _Nothing queued for the next release yet._
 
 ---
 
+## [2.1.0] — 2026-07-29
+
+Logbook is now configured from the Control Panel instead of `.env`, and it
+records CP page views. **Upgrading is non-destructive**: your log rows are
+untouched (no schema change to either log table) and your existing `.env`
+configuration is imported into the new settings screen on first run. See
+[UPGRADE.md](UPGRADE.md).
+
+### Added
+
+* **CP settings screen** at *Utilities → Logbook → Settings*. Master switches
+  for each stream, per-level capture for system logs, per-event toggles for
+  audit logs grouped by component, retention, and the ignore lists — all
+  stored in the `logbook_settings` table and applied at boot, so no `.env`
+  edit or cache rebuild is needed. Settings take precedence over `LOGBOOK_*`
+  env values, which continue to act as defaults.
+* **First-run setup** for new installs: a guided screen that takes database
+  credentials (prefilled from `.env`), creates the tables and starts
+  capturing, so `logbook:install` is no longer a required manual step.
+* **CP page-view tracking** (off by default). Records who opened which entry,
+  collection, user, asset and so on across 29 CP routes. Includes per-page
+  switches, a repeat-collapse window, role exclusions (including super
+  admins), and its own retention window so high-volume read events do not
+  inflate the audit retention you use for changes.
+* **`php artisan logbook:upgrade`** — creates tables added since the installed
+  version and imports `.env` / `config/logbook.php` configuration into the CP
+  settings row. Idempotent; `--force` re-imports over existing settings.
+* **Per-event audit toggles.** All 69 curated events can be switched off
+  individually or by component group. A disabled event gets no listener at
+  all, so it is genuinely not captured rather than hidden from the listing.
+* **Action icons in the audit listing.** Each action now carries an icon as
+  well as a colour, so the verb is distinguishable without relying on hue.
+
+### Changed
+
+* **Retention is now two windows.** `retention_days` continues to govern
+  system and audit rows; page views get their own (default 30 days), applied
+  by `logbook:prune`.
+* **Shared component palette.** A component (Entries, Assets, Users…) uses the
+  same colour and icon on the settings screen, the audit listing and the
+  timeline. Defined once in `AuditActionPresenter::GROUP_COMPONENTS`.
+* **`logbook:install`** also creates `logbook_settings`. Existing tables are
+  left alone, as before.
+
+### Fixed
+
+* **CP page views were almost never recorded.** The tracker bailed out on
+  `$request->ajax()`, but Statamic 6's Inertia-based CP sends
+  `X-Requested-With: XMLHttpRequest` on every in-CP navigation, so only hard
+  browser reloads were logged. Inertia visits now count as page views, while
+  genuine data XHRs and Inertia partial reloads are still ignored.
+* **Timeline: selecting any severity emptied the audit stream.** The audit
+  query required `'audit'` to appear in a list that only ever holds
+  `error`/`warn`/`info`, so ticking a severity pill silently dropped every
+  audit event. Severity now narrows the system stream only.
+* **Timeline showed rows from disabled streams.** Switching a stream off hides
+  its tab and 404s its page, but the timeline still mixed its rows in; it only
+  404'd when both streams were off. It now honours the stream switches and
+  hides the pill for a disabled stream.
+* **Timeline and audit pages returned a 500 on array query parameters.**
+  `?q[]=x` reached a `(string)` cast and `?from[]=x` crashed in
+  `htmlspecialchars`. Query parameters are coerced to scalars and the views
+  receive sanitised values.
+* **Info and debug rows had an unstyled badge on the timeline**, because the
+  timeline's rail variant was reused as a chip class and produced a
+  `lb-chip--system` rule that does not exist. Levels now use the same colours
+  as the System Logs page.
+* **`info` log level rendered amber**, the same as a warning, because the
+  `info` chip was aliased to the `update` style. It is blue again, matching
+  the level dots on the settings screen.
+* **Failed sign-ins looked like successful ones** — `loginFailed` matched the
+  generic auth rule and rendered indigo. Failed sign-in and failed two-factor
+  attempts are now red.
+* **Audit rows on the timeline used the amber reserved for warnings.** A user
+  action is not a severity; audit rails are indigo and system-info rails blue.
+
+### Removed
+
+* Superseded settings CSS from the pre-2.1 screen (`lb-settings-section`,
+  `lb-switch`, `lb-level`, `lb-group`, `lb-setup`, `lb-savebar` and the first
+  page-view panel) — 319 lines, replaced by the current settings styles.
+* A dead `AuditActionPresenter::icon()` implementation that returned a
+  different set of keys from the one the views use.
+
+---
+
 ## [2.0.2] — 2026-04-27
 
 Compatibility hotfix. Laravel 13 was released this week (2026-04-21) and

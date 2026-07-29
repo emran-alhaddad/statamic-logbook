@@ -32,6 +32,27 @@ All inside the Statamic Control Panel, with filtering, analytics, and CSV export
 - Supports field-level ignore rules and value truncation
 - Supports optional broader event discovery mode
 
+### Page views (optional)
+
+- Records who opened which entry, collection, user, asset… across 29 CP routes
+- Per-page switches, so you track only the surfaces you care about
+- Collapses repeat opens of the same thing into one row (configurable window)
+- Excludes chosen roles, or super admins, from being tracked
+- Its own retention window, so read volume never inflates your change history
+- Off by default
+
+### Settings in the Control Panel
+
+- Every capture switch lives at *Utilities → Logbook → Settings* — no `.env`
+  edit, no `config:clear`, no deploy
+- Master switch per stream, per-level switches for system logs, and per-event
+  switches for audit logs grouped by component
+- A switched-off event gets no listener at all: it is not captured, not merely
+  hidden from the listing
+- Shows real 7-day volume next to each level, component and tracked page, so
+  you can see what a switch actually costs before flipping it
+- `LOGBOOK_*` env values remain as defaults; CP settings take precedence
+
 ### Control Panel
 
 - Native Statamic CP styling/components
@@ -68,7 +89,7 @@ Use these widget handles when configuring dashboard widgets:
 
 ## Control Panel walkthrough
 
-The utility lives under `Utilities → Logbook`. The same page hosts three tabs: **System**, **Audit**, and **Timeline**. Every feature below works the same on Statamic 4, 5, and 6 — the addon ships its own stylesheet and script bundle so nothing depends on the host CP's Tailwind purge configuration.
+The utility lives under `Utilities → Logbook`. The same page hosts **System**, **Audit**, **Timeline** and **Settings** tabs. A stream you switch off in Settings loses its tab and its route returns 404, and it stops appearing on the Timeline. Every feature below works the same on Statamic 4, 5, and 6 — the addon ships its own stylesheet and script bundle so nothing depends on the host CP's Tailwind purge configuration.
 
 ### Dashboard widgets
 
@@ -100,7 +121,7 @@ The utility lives under `Utilities → Logbook`. The same page hosts three tabs:
 
 **Human-readable audit actions.** Raw event strings like `statamic.user.saved` are shown as `User updated` via an `AuditActionPresenter`. On `update` events, the row carries an inline ribbon with a truncated "from → to" summary of the first 1–2 changed fields (e.g. `title: "Old" → "New"`) using the existing `changes` column. Zero schema changes; the raw event name stays on disk so `?action=statamic.user.saved` keeps working.
 
-**Unified timeline.** The `Timeline` tab interleaves system + audit events into a single chronological rail grouped by day (`Today` / `Yesterday` / explicit dates). Filterable by type (system / audit) and severity (error / warn / info).
+**Unified timeline.** The `Timeline` tab interleaves system + audit events into a single chronological rail grouped by day (`Today` / `Yesterday` / explicit dates). Filter by stream (system / audit); the severity pills (error / warn / info) narrow the system stream only, since audit events have no log level.
 
 **CSV export.** The `Export CSV` button downloads the currently-filtered rows as a CSV respecting all filters + sort.
 
@@ -116,7 +137,7 @@ Shortcuts are suppressed while typing in form fields.
 
 ## User preferences
 
-`logbook:install` creates a third table, `logbook_user_prefs`, in the **logbook database** (not the project database). One row per CP user, a single JSON `prefs` blob. The UI uses `localStorage` as a zero-config fallback for density / saved presets / per-page default; when the preferences table is available, a set of CP endpoints allows those values to sync across devices:
+`logbook:install` creates `logbook_user_prefs` in the **logbook database** (not the project database). One row per CP user, a single JSON `prefs` blob. The UI uses `localStorage` as a zero-config fallback for density / saved presets / per-page default; when the preferences table is available, a set of CP endpoints allows those values to sync across devices:
 
 - `GET    /cp/utilities/logbook/prefs`          — return every pref for the current user
 - `GET    /cp/utilities/logbook/prefs/{key}`    — return one pref
@@ -151,11 +172,28 @@ The `logbook` tag publishes the config file, the CP stylesheet, and the CP scrip
 
 ---
 
-## Setup (Required)
+## Setup
 
-### 1) Configure Logbook database credentials in `.env`
+### Already using Logbook?
 
-These are required for Logbook to work:
+See **[UPGRADE.md](UPGRADE.md)**. Short version: your log rows are untouched,
+and `php artisan logbook:upgrade` imports your existing `.env` configuration
+into the new settings screen.
+
+### From the Control Panel (recommended)
+
+Open **Utilities → Logbook**. On a fresh install you get a setup screen
+prefilled from your `.env`: confirm or edit the database details, press
+**Connect & install**, and Logbook creates its tables and starts capturing.
+Everything after that is configured on the Settings tab.
+
+By default Logbook logs into your application's own database. Point it at a
+separate database if you would rather keep audit history isolated.
+
+### From the command line
+
+If you prefer to provision without the CP — or you are scripting a deploy —
+set the credentials in `.env`:
 
 ```env
 LOGBOOK_DB_CONNECTION=mysql
@@ -166,21 +204,26 @@ LOGBOOK_DB_USERNAME=logbook_user
 LOGBOOK_DB_PASSWORD=secret
 ```
 
-Then clear config cache:
+then:
 
 ```bash
 php artisan config:clear
-```
-
-### 2) Install database tables
-
-```bash
 php artisan logbook:install
 ```
+
+> Settings you save in the CP are stored in the `logbook_settings` table and
+> take precedence over `LOGBOOK_*` env values, which remain the defaults. To go
+> back to env-only configuration, delete the `settings` row from that table.
 
 ---
 
 ## Environment Variables
+
+These are the **defaults**. Anything you change on the Settings screen is stored
+in the database and overrides the matching value here — so on a configured
+install, editing `LOGBOOK_SYSTEM_LOGS_ENABLED` has no visible effect until you
+delete the `settings` row from `logbook_settings`. The database credentials
+below are the exception: they are always read from `.env`.
 
 All variables used by the addon:
 
@@ -210,6 +253,12 @@ LOGBOOK_AUDIT_DISCOVER_EVENTS=false
 LOGBOOK_AUDIT_EXCLUDE_EVENTS=
 LOGBOOK_AUDIT_IGNORE_FIELDS=updated_at,created_at,date,uri,slug
 LOGBOOK_AUDIT_MAX_VALUE_LENGTH=2000
+
+# CP page-view tracking (normally managed from the Settings screen)
+LOGBOOK_ACTIVITY_ENABLED=false
+LOGBOOK_ACTIVITY_DEDUPE_MINUTES=5
+LOGBOOK_ACTIVITY_EXCLUDED_ROLES=
+LOGBOOK_ACTIVITY_RETENTION_DAYS=30
 
 # Retention
 LOGBOOK_RETENTION_DAYS=365
@@ -363,7 +412,13 @@ Short cron example:
 ## Operational Commands
 
 - Install tables: `php artisan logbook:install`
-- Prune old rows: `php artisan logbook:prune`
+- Upgrade an existing install: `php artisan logbook:upgrade` — adds tables
+  introduced since your installed version and imports `.env` configuration into
+  the CP settings. Idempotent; `--force` re-imports over existing settings.
+  See [UPGRADE.md](UPGRADE.md).
+- Prune old rows: `php artisan logbook:prune` — honours both retention windows
+  (system/audit rows, and page views separately). `--dry-run` reports what it
+  would delete without touching anything.
 - Flush spool: `php artisan logbook:flush-spool`
 
 ### Run maintenance from Control Panel
@@ -385,7 +440,7 @@ Implementation note: CP action requests are submitted as form-encoded POST with 
 
 ## Quick Verification
 
-1. Set required DB env vars.
+1. Set the DB env vars (or complete setup from the CP).
 2. Run `php artisan config:clear`.
 3. Run `php artisan logbook:install`.
 4. Trigger a test log:
@@ -402,7 +457,12 @@ Implementation note: CP action requests are submitted as form-encoded POST with 
 This repository includes a PHPUnit suite focused on regression checks for critical behavior:
 
 - `EventMapTest` — per-major event resolution, silent filtering of missing event classes, exclusion semantics
-- `StatamicAuditSubscriberResolutionTest` — cross-major class-not-found safety, exclude-list round-trip
+- `StatamicAuditSubscriberResolutionTest` — cross-major class-not-found safety, exclude-list round-trip, and that a **disabled event gets no recording listener** (not captured, not merely hidden)
+- `SettingsRepositoryTest` — sanitisation, type coercion, out-of-range fallbacks, config overlay
+- `UpgradeImportTest` — 2.0.x `.env` configuration imports correctly, and the old level threshold becomes per-level switches without inflating log volume
+- `LogCpPageViewsTest` — per-page and role gating, dedupe window, and that Inertia CP navigations count as page views while data XHRs and partial reloads do not
+- `ComponentPaletteTest` — every event group, tracked page and subject type has a colour and icon, and no two verbs share an icon
+- `TimelineFiltersTest` — query parameters coerced to scalars (array input must not 500), and `'audit'` is never treated as a severity
 - `WidgetRegistryShimTest` — capability-gated shim firing only when core registration is absent, idempotency
 - Audit action normalization mapping
 - Curated audit default mode (`discover_events=false`)
