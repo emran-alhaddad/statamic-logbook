@@ -13,6 +13,30 @@ _Nothing queued for the next release yet._
 
 ---
 
+## [2.2.0] — 2026-07-29
+
+Page views no longer appear on the Audit Logs page.
+
+Recording who *opened* something is useful, but it is much higher volume than
+recording who *changed* something, and mixing the two buried real change
+history. Page views now surface on the Timeline only.
+
+### Changed
+
+* **Audit Logs excludes page views** — the listing, its action and subject
+  filters, its 24h/7d stat cards, the live-tail JSON endpoint and the CSV
+  export all skip `*.viewed` rows, so the page cannot hide rows it still counts.
+* **The Timeline is the only place page views appear**, and only while
+  page-view tracking is enabled. Switching tracking off hides historical view
+  rows there too, matching how a disabled stream already disappears from that
+  page.
+
+Nothing is deleted: existing view rows stay in `logbook_audit_logs`, keep their
+own retention window, and reappear on the Timeline the moment tracking is
+switched back on.
+
+---
+
 ## [2.1.0] — 2026-07-29
 
 Logbook is now configured from the Control Panel instead of `.env`, and it

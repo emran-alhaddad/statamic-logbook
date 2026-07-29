@@ -239,7 +239,7 @@
                     <span class="lb-icobox lb-icobox--lg" style="--lb-tint:var(--lb-t-violet)"><svg class="lb-i" width="18" height="18"><use href="#lbi-eye"/></svg></span>
                     <div class="lb-scard__titles">
                         <h4>Page Views</h4>
-                        <p>Record who opened what in the CP. Reads, not changes: higher volume, tighter controls.</p>
+                        <p>Record who opened what in the CP. Reads, not changes — they appear on the Timeline only, never in Audit Logs.</p>
                     </div>
                     <label class="lb-sw"><input type="checkbox" name="activity_views" value="1" @checked($settings['activity_views']) data-lb-views-master aria-label="Track page views"><span class="lb-sw__tr"></span><span class="lb-sw__kn"></span></label>
                 </div>

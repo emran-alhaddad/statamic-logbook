@@ -35,6 +35,8 @@ All inside the Statamic Control Panel, with filtering, analytics, and CSV export
 ### Page views (optional)
 
 - Records who opened which entry, collection, user, asset… across 29 CP routes
+- Shown on the **Timeline only** (while tracking is on) — never mixed into Audit
+  Logs, which stays a clean record of what changed
 - Per-page switches, so you track only the surfaces you care about
 - Collapses repeat opens of the same thing into one row (configurable window)
 - Excludes chosen roles, or super admins, from being tracked
@@ -121,7 +123,7 @@ The utility lives under `Utilities → Logbook`. The same page hosts **System**,
 
 **Human-readable audit actions.** Raw event strings like `statamic.user.saved` are shown as `User updated` via an `AuditActionPresenter`. On `update` events, the row carries an inline ribbon with a truncated "from → to" summary of the first 1–2 changed fields (e.g. `title: "Old" → "New"`) using the existing `changes` column. Zero schema changes; the raw event name stays on disk so `?action=statamic.user.saved` keeps working.
 
-**Unified timeline.** The `Timeline` tab interleaves system + audit events into a single chronological rail grouped by day (`Today` / `Yesterday` / explicit dates). Filter by stream (system / audit); the severity pills (error / warn / info) narrow the system stream only, since audit events have no log level.
+**Unified timeline.** The `Timeline` tab interleaves system + audit events into a single chronological rail grouped by day (`Today` / `Yesterday` / explicit dates). It is also the only place page views appear, and only while page-view tracking is on. Filter by stream (system / audit); the severity pills (error / warn / info) narrow the system stream only, since audit events have no log level.
 
 **CSV export.** The `Export CSV` button downloads the currently-filtered rows as a CSV respecting all filters + sort.
 

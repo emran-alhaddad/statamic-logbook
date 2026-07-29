@@ -401,7 +401,7 @@ class LogbookUtilityController
 
         $conn = DbConnectionResolver::resolve();
 
-        $q = DB::connection($conn)->table('logbook_audit_logs');
+        $q = self::withoutPageViews(DB::connection($conn)->table('logbook_audit_logs'));
 
         // Coerced to scalars: `?from[]=x` otherwise reached a (string) cast and
         // 500'd the page. The view is handed these values, not raw input.
@@ -452,10 +452,10 @@ class LogbookUtilityController
 
         $logs = $q->orderBy($sort, $dir)->orderByDesc('id')->paginate($perPage)->withQueryString();
 
-        $actions = DB::connection($conn)->table('logbook_audit_logs')
+        $actions = self::withoutPageViews(DB::connection($conn)->table('logbook_audit_logs'))
             ->select('action')->distinct()->orderBy('action')->pluck('action')->all();
 
-        $subjects = DB::connection($conn)->table('logbook_audit_logs')
+        $subjects = self::withoutPageViews(DB::connection($conn)->table('logbook_audit_logs'))
             ->select('subject_type')->distinct()->orderBy('subject_type')->pluck('subject_type')->all();
 
         $stats = $this->auditStats($conn);
@@ -552,6 +552,14 @@ class LogbookUtilityController
 
         if (in_array('audit', $types, true)) {
             $aud = DB::connection($conn)->table('logbook_audit_logs');
+
+            // The Timeline is the only place page views surface, and only while
+            // tracking is on — switching it off hides historical view rows here
+            // too, the same way a disabled stream disappears from this page.
+            if (! (bool) config('logbook.activity.enabled', false)) {
+                self::withoutPageViews($aud);
+            }
+
             if ($from) $aud->whereDate('created_at', '>=', $from);
             if ($to)   $aud->whereDate('created_at', '<=', $to);
             if ($q !== '') {
@@ -621,6 +629,23 @@ class LogbookUtilityController
             'itemCount' => count($items),
             'limit'     => $limit,
         ]);
+    }
+
+    /**
+     * Page views are reads, not changes. They belong on the Timeline (and only
+     * while page-view tracking is on); the Audit Logs page is the record of
+     * what people CHANGED, so view rows are excluded from it — and from its
+     * filters, stats, live tail and CSV export, so the page stays internally
+     * consistent instead of hiding rows it still counts.
+     *
+     * Actions are `statamic.{subject}.viewed`.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $q
+     * @return \Illuminate\Database\Query\Builder
+     */
+    private static function withoutPageViews($q)
+    {
+        return $q->where('action', 'not like', '%.viewed');
     }
 
     /**
@@ -704,7 +729,7 @@ class LogbookUtilityController
         $afterId = (int) $request->get('after_id', 0);
         $limit = max(1, min(100, (int) $request->get('limit', 25)));
 
-        $q = DB::connection($conn)->table('logbook_audit_logs');
+        $q = self::withoutPageViews(DB::connection($conn)->table('logbook_audit_logs'));
         if ($afterId > 0) $q->where('id', '>', $afterId);
 
         if ($action = $request->get('action')) $q->where('action', $action);
@@ -858,7 +883,7 @@ class LogbookUtilityController
 
         $conn = DbConnectionResolver::resolve();
 
-        $q = DB::connection($conn)->table('logbook_audit_logs');
+        $q = self::withoutPageViews(DB::connection($conn)->table('logbook_audit_logs'));
 
         if ($from = $request->get('from')) $q->whereDate('created_at', '>=', $from);
         if ($to   = $request->get('to'))   $q->whereDate('created_at', '<=', $to);
@@ -1142,7 +1167,7 @@ class LogbookUtilityController
         $since24h = $now->copy()->subHours(24);
         $since7d  = $now->copy()->subDays(7);
 
-        $base = DB::connection($conn)->table('logbook_audit_logs');
+        $base = self::withoutPageViews(DB::connection($conn)->table('logbook_audit_logs'));
 
         $total24h = (clone $base)->where('created_at', '>=', $since24h)->count();
 
