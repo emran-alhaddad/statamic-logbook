@@ -4,16 +4,15 @@ declare(strict_types=1);
 
 namespace EmranAlhaddad\StatamicLogbook\Tests\Unit;
 
-use PHPUnit\Framework\TestCase;
 use EmranAlhaddad\StatamicLogbook\Audit\AuditRecorder;
 use EmranAlhaddad\StatamicLogbook\Audit\ChangeDetector;
 use EmranAlhaddad\StatamicLogbook\Audit\StatamicAuditSubscriber;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
 
 final class StatamicAuditSubscriberTest extends TestCase
 {
-    /**
-     * @dataProvider operationCases
-     */
+    #[DataProvider('operationCases')]
     public function test_it_normalizes_event_class_to_operation(string $eventClass, string $expected): void
     {
         $subscriber = new StatamicAuditSubscriber(

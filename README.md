@@ -165,8 +165,11 @@ Statamic 3 users stay on the dedicated [`1.x` LTS branch](https://github.com/emr
 ```bash
 composer require emran-alhaddad/statamic-logbook
 php artisan vendor:publish --tag=logbook
-php artisan logbook:install
 ```
+
+Then open **Utilities → Logbook** and finish setup there — Logbook creates its
+own tables on the way. If you would rather provision from the command line, see
+[Setup](#setup) below.
 
 The `logbook` tag publishes the config file, the CP stylesheet, and the CP script bundle. Statamic re-runs this automatically on `php artisan statamic:install`, so most teams only need to run it once on initial setup.
 
@@ -217,111 +220,108 @@ php artisan logbook:install
 
 ---
 
-## Environment Variables
+## Configuration
 
-These are the **defaults**. Anything you change on the Settings screen is stored
-in the database and overrides the matching value here — so on a configured
-install, editing `LOGBOOK_SYSTEM_LOGS_ENABLED` has no visible effect until you
-delete the `settings` row from `logbook_settings`. The database credentials
-below are the exception: they are always read from `.env`.
+Logbook has two configuration surfaces, and it matters which one owns what:
 
-All variables used by the addon:
+| Surface | Owns |
+| --- | --- |
+| **`.env`** | Database credentials (always), plus advanced knobs with no CP equivalent |
+| **CP → Settings** | Day-to-day capture switches: streams, levels, per-event toggles, page views, retention |
+
+On a configured install the CP wins. Editing `LOGBOOK_SYSTEM_LOGS_ENABLED` in
+`.env` will look like it does nothing, because the saved settings override it.
+Env values act as the **defaults** — and on upgrade they are imported into the
+settings row once (see [UPGRADE.md](UPGRADE.md)). To hand control back to
+`.env`, delete the `settings` row from `logbook_settings`.
+
+### Required: database credentials
+
+Always read from `.env` — these are never CP-managed, since Logbook needs them
+before it can read its own settings table. Point them at your app's database to
+log there, or at a separate database to keep audit history isolated.
 
 ```env
-# Required DB connection
 LOGBOOK_DB_CONNECTION=mysql
 LOGBOOK_DB_HOST=127.0.0.1
 LOGBOOK_DB_PORT=3306
 LOGBOOK_DB_DATABASE=logbook_database
 LOGBOOK_DB_USERNAME=logbook_user
 LOGBOOK_DB_PASSWORD=secret
+```
 
-# Optional DB tuning
-LOGBOOK_DB_SOCKET=
-LOGBOOK_DB_CHARSET=utf8mb4
-LOGBOOK_DB_COLLATION=utf8mb4_unicode_ci
+Optional tuning: `LOGBOOK_DB_SOCKET` (unix socket), `LOGBOOK_DB_CHARSET`
+(`utf8mb4`), `LOGBOOK_DB_COLLATION` (`utf8mb4_unicode_ci`).
 
-# System logging
-LOGBOOK_SYSTEM_LOGS_ENABLED=true
-LOGBOOK_SYSTEM_LOGS_LEVEL=debug
+If you complete setup from the Control Panel these are written to `.env` for
+you, so you usually never type them by hand.
+
+### Managed in the Control Panel
+
+Set these on the Settings screen. The env vars below are only the initial
+defaults; once settings are saved, the CP value wins.
+
+| Variable | Default | Settings screen |
+| --- | --- | --- |
+| `LOGBOOK_SYSTEM_LOGS_ENABLED` | `true` | System Logs master switch |
+| `LOGBOOK_SYSTEM_LOGS_LEVEL` | `debug` | Per-level capture switches |
+| `LOGBOOK_AUDIT_LOGS_ENABLED` | `true` | Audit Logs master switch |
+| `LOGBOOK_AUDIT_EXCLUDE_EVENTS` | *(empty)* | Per-event toggles |
+| `LOGBOOK_RETENTION_DAYS` | `365` | Keep logs for … |
+| `LOGBOOK_ACTIVITY_ENABLED` | `false` | Page Views master switch |
+| `LOGBOOK_ACTIVITY_DEDUPE_MINUTES` | `5` | Ignore repeat views within … |
+| `LOGBOOK_ACTIVITY_EXCLUDED_ROLES` | *(empty)* | Who gets tracked (`__super` = super admins) |
+| `LOGBOOK_ACTIVITY_RETENTION_DAYS` | `30` | Keep view rows for … |
+
+### Env-only (no CP equivalent)
+
+```env
+# System log noise filters
 LOGBOOK_SYSTEM_LOGS_BUBBLE=true
 LOGBOOK_SYSTEM_LOGS_IGNORE_CHANNELS=deprecations
-LOGBOOK_SYSTEM_LOGS_IGNORE_MESSAGES=Since symfony/http-foundation,Unable to create configured logger. Using emergency logger.
+LOGBOOK_SYSTEM_LOGS_IGNORE_MESSAGES=Since symfony/http-foundation
 
-# Audit logging
+# Audit event resolution and diffing
+LOGBOOK_AUDIT_USE_CURATED_DEFAULTS=true
 LOGBOOK_AUDIT_DISCOVER_EVENTS=false
-LOGBOOK_AUDIT_EXCLUDE_EVENTS=
+LOGBOOK_AUDIT_EVENTS=
+LOGBOOK_AUDIT_AUTH_EVENTS=true
 LOGBOOK_AUDIT_IGNORE_FIELDS=updated_at,created_at,date,uri,slug
 LOGBOOK_AUDIT_MAX_VALUE_LENGTH=2000
 
-# CP page-view tracking (normally managed from the Settings screen)
-LOGBOOK_ACTIVITY_ENABLED=false
-LOGBOOK_ACTIVITY_DEDUPE_MINUTES=5
-LOGBOOK_ACTIVITY_EXCLUDED_ROLES=
-LOGBOOK_ACTIVITY_RETENTION_DAYS=30
-
-# Retention
-LOGBOOK_RETENTION_DAYS=365
-
-# Ingestion mode
+# Ingestion (see "Ingestion Modes" below)
 LOGBOOK_INGEST_MODE=sync
 LOGBOOK_SPOOL_PATH=storage/app/logbook/spool
 LOGBOOK_SPOOL_MAX_MB=256
 LOGBOOK_SPOOL_BACKPRESSURE=drop_oldest
 
-# Addon scheduler (flush spool)
+# Addon scheduler for the spool flush
 LOGBOOK_SCHEDULER_FLUSH_SPOOL_ENABLED=true
 LOGBOOK_SCHEDULER_FLUSH_SPOOL_EVERY_MINUTES=60
 LOGBOOK_SCHEDULER_FLUSH_SPOOL_WITHOUT_OVERLAPPING=true
 ```
 
-### Short `.env` example (minimal working setup)
+- `LOGBOOK_SYSTEM_LOGS_BUBBLE` — Monolog bubble behaviour.
+- `LOGBOOK_SYSTEM_LOGS_IGNORE_CHANNELS` / `..._IGNORE_MESSAGES` — comma-separated
+  channels and message fragments to drop. Anything you add in the CP's "Ignored
+  channels" box is merged **on top of** these, so both keep applying.
+- `LOGBOOK_AUDIT_USE_CURATED_DEFAULTS` — set `false` to listen only to the
+  classes you list in `LOGBOOK_AUDIT_EVENTS`.
+- `LOGBOOK_AUDIT_DISCOVER_EVENTS` — merge every discovered `Statamic\Events\*`
+  class with the curated set. Verbose; off by default.
+- `LOGBOOK_AUDIT_AUTH_EVENTS` — capture Laravel auth events (sign-in, sign-out,
+  failed attempts, password resets).
+- `LOGBOOK_AUDIT_IGNORE_FIELDS` — fields excluded from change diffs. Merged with
+  the CP's "Ignored fields" box.
+- `LOGBOOK_AUDIT_MAX_VALUE_LENGTH` — truncation ceiling for stored diff values.
+- `LOGBOOK_INGEST_MODE` — `sync` (write during the request) or `spool` (local
+  NDJSON spool + scheduled flush).
 
-```env
-LOGBOOK_DB_CONNECTION=mysql
-LOGBOOK_DB_HOST=127.0.0.1
-LOGBOOK_DB_PORT=3306
-LOGBOOK_DB_DATABASE=logbook_database
-LOGBOOK_DB_USERNAME=logbook_user
-LOGBOOK_DB_PASSWORD=secret
-
-LOGBOOK_INGEST_MODE=spool
-LOGBOOK_SPOOL_PATH=storage/app/logbook/spool
-```
-
-### Required variables
-
-- `LOGBOOK_DB_CONNECTION`
-- `LOGBOOK_DB_HOST`
-- `LOGBOOK_DB_PORT`
-- `LOGBOOK_DB_DATABASE`
-- `LOGBOOK_DB_USERNAME`
-- `LOGBOOK_DB_PASSWORD`
-
-### Optional variables and behavior
-
-- `LOGBOOK_DB_SOCKET`: unix socket path.
-- `LOGBOOK_DB_CHARSET`: DB charset (default `utf8mb4`).
-- `LOGBOOK_DB_COLLATION`: DB collation (default `utf8mb4_unicode_ci`).
-- `LOGBOOK_SYSTEM_LOGS_ENABLED`: enable/disable system log capture (default `true`).
-- `LOGBOOK_SYSTEM_LOGS_LEVEL`: minimum system level (default `debug`).
-- `LOGBOOK_SYSTEM_LOGS_BUBBLE`: Monolog bubble behavior (default `true`).
-- `LOGBOOK_SYSTEM_LOGS_IGNORE_CHANNELS`: comma-separated ignored channels.
-- `LOGBOOK_SYSTEM_LOGS_IGNORE_MESSAGES`: comma-separated ignored message fragments.
-- `LOGBOOK_AUDIT_DISCOVER_EVENTS`: when `true`, merges discovered Statamic events with curated defaults.
-- `LOGBOOK_AUDIT_EXCLUDE_EVENTS`: comma-separated audit event classes to exclude.
-- `LOGBOOK_AUDIT_IGNORE_FIELDS`: comma-separated fields ignored in diffs.
-- `LOGBOOK_AUDIT_MAX_VALUE_LENGTH`: max stored value length before truncation.
-- `LOGBOOK_RETENTION_DAYS`: retention period for prune command.
-- `LOGBOOK_INGEST_MODE`: `sync` (direct DB) or `spool` (local file spool + background flush).
-- `LOGBOOK_SPOOL_PATH`: spool directory path.
-- `LOGBOOK_SPOOL_MAX_MB`: max spool size before backpressure policy applies.
-- `LOGBOOK_SPOOL_BACKPRESSURE`: currently supports `drop_oldest`.
-- `LOGBOOK_SCHEDULER_FLUSH_SPOOL_ENABLED`: enable/disable addon-level scheduler for flush command (default `true`).
-- `LOGBOOK_SCHEDULER_FLUSH_SPOOL_EVERY_MINUTES`: interval (minutes) for addon-level flush scheduling (default `60`).
-- `LOGBOOK_SCHEDULER_FLUSH_SPOOL_WITHOUT_OVERLAPPING`: apply overlap protection for scheduled flush runs (default `true`).
+Redaction of secret-looking keys is configured in `config/logbook.php` under
+`privacy`, not via env.
 
 ---
+
 
 ## Ingestion Modes
 
@@ -440,15 +440,18 @@ Implementation note: CP action requests are submitted as form-encoded POST with 
 
 ## Quick Verification
 
-1. Set the DB env vars (or complete setup from the CP).
-2. Run `php artisan config:clear`.
-3. Run `php artisan logbook:install`.
-4. Trigger a test log:
-  ```php
+1. Finish setup — either from the CP (**Utilities → Logbook**) or with
+   `php artisan logbook:install` after setting the DB env vars.
+2. Trigger a test log:
+   ```php
    \Log::error('logbook smoke test', ['source' => 'manual-check']);
-  ```
-5. If in spool mode, run `php artisan logbook:flush-spool --type=all`.
-6. Confirm rows appear in CP (System Logs / Audit Logs).
+   ```
+3. Save any entry in the CP, to produce an audit row.
+4. If you run `spool` mode, run `php artisan logbook:flush-spool --type=all`.
+5. Confirm both rows appear under **Utilities → Logbook**.
+
+Seeing nothing? Check **Settings** first — a stream whose master switch is off
+captures nothing and hides its own tab.
 
 ---
 
@@ -493,10 +496,17 @@ npm run build
 - Keep scheduler and cron configured if using `spool` mode.
 - Keep `LOGBOOK_AUDIT_DISCOVER_EVENTS=false` unless you need wider coverage.
 - Monitor failed spool files under `storage/app/logbook/spool/failed/`.
+- Run `php artisan logbook:upgrade` as part of deploys that bump the addon.
+- Switch off event groups you do not need, rather than pruning harder — a
+  disabled event is never written in the first place.
+- Give page views a shorter retention than the audit trail; they are the
+  highest-volume thing Logbook records.
 
 ### Do not
 
 - Do not commit real credentials.
+- Do not expect `.env` changes to take effect on a configured install — the CP
+  settings override them.
 - Do not disable scheduler while using `spool` mode.
 - Do not point Logbook to an uncontrolled DB.
 - Do not treat audit logs as editable content.
