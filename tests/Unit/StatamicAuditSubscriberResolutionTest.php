@@ -101,6 +101,61 @@ final class StatamicAuditSubscriberResolutionTest extends TestCase
         $this->assertSame([\Statamic\Events\UserSaved::class], $resolved);
     }
 
+    /**
+     * The guarantee users rely on: a disabled event is NOT CAPTURED, not
+     * merely hidden from the listing. Proven by there being no recording
+     * listener at all — nothing can write a row it never hears about.
+     */
+    public function test_a_disabled_event_gets_no_recording_listener(): void
+    {
+        /** @var Repository $config */
+        $config = Container::getInstance()->make('config');
+        $config->set('logbook.audit_logs.exclude_events', [\Statamic\Events\EntrySaved::class]);
+
+        $dispatcher = new \Illuminate\Events\Dispatcher(Container::getInstance());
+        Container::getInstance()->instance('events', $dispatcher);
+        \Illuminate\Support\Facades\Event::clearResolvedInstances();
+        \Illuminate\Support\Facades\Event::setFacadeApplication(Container::getInstance());
+
+        $this->newSubscriber()->subscribe();
+
+        $this->assertFalse(
+            $this->hasRecordingListener($dispatcher, \Statamic\Events\EntrySaved::class),
+            'A disabled event must not get a recording listener'
+        );
+        $this->assertTrue(
+            $this->hasRecordingListener($dispatcher, \Statamic\Events\EntryCreated::class),
+            'Events left enabled must still be captured'
+        );
+    }
+
+    /**
+     * Is there a listener that would RECORD this event? Entry events also
+     * carry depth-marker listeners bound to the same subscriber, so simply
+     * asking "are there listeners?" is not enough — we match the recording
+     * closure, which closes over an $eventClass variable.
+     */
+    private function hasRecordingListener(\Illuminate\Events\Dispatcher $dispatcher, string $event): bool
+    {
+        foreach ($dispatcher->getListeners($event) as $listener) {
+            try {
+                $vars = (new \ReflectionFunction($listener))->getStaticVariables();
+                foreach ($vars as $v) {
+                    if ($v instanceof \Closure
+                        && array_key_exists('eventClass', (new \ReflectionFunction($v))->getStaticVariables())) {
+                        return true;
+                    }
+                }
+                if (array_key_exists('eventClass', $vars)) {
+                    return true;
+                }
+            } catch (\Throwable) {
+            }
+        }
+
+        return false;
+    }
+
     private function newSubscriber(): StatamicAuditSubscriber
     {
         return new StatamicAuditSubscriber(

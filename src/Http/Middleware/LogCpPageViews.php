@@ -24,33 +24,60 @@ use Illuminate\Support\Facades\DB;
 class LogCpPageViews
 {
     /**
-     * CP route name => [subject type, route parameter holding the subject].
-     * Parameter null = the page itself is the subject (dashboard).
+     * CP route name => [subject type, route parameter, settings page key].
+     * Parameter null = the page itself is the subject (dashboard). The page
+     * key ties each route to the "Tracked pages" switches in CP settings
+     * (SettingsRepository::VIEW_PAGES — a test keeps the key sets aligned).
      *
-     * @var array<string, array{0: string, 1: ?string}>
+     * @var array<string, array{0: string, 1: ?string, 2: string}>
      */
-    private const ROUTES = [
-        'statamic.cp.dashboard' => ['dashboard', null],
-        'statamic.cp.collections.show' => ['collection', 'collection'],
-        'statamic.cp.collections.entries.edit' => ['entry', 'entry'],
-        'statamic.cp.taxonomies.show' => ['taxonomy', 'taxonomy'],
-        'statamic.cp.taxonomies.terms.edit' => ['term', 'term'],
-        'statamic.cp.navigation.show' => ['nav', 'navigation'],
-        'statamic.cp.globals.variables.edit' => ['globals', 'global_set'],
-        'statamic.cp.globals.edit' => ['globals', 'global_set'],
-        'statamic.cp.assets.browse.show' => ['asset_container', 'container'],
-        'statamic.cp.users.edit' => ['user', 'user'],
-        'statamic.cp.users.index' => ['user_listing', null],
-        'statamic.cp.forms.show' => ['form', 'form'],
-        'statamic.cp.forms.submissions.show' => ['submission', 'submission'],
-    ];
+    public const ROUTES = [
+        'statamic.cp.dashboard' => ['dashboard', null, 'dashboard'],
 
-    /**
-     * Repeated opens of the same thing by the same user inside this window
-     * collapse into one row.
-     * ponytail: fixed 5-minute window; make it a setting if anyone asks.
-     */
-    private const DEDUPE_MINUTES = 5;
+        // Collections
+        'statamic.cp.collections.index' => ['collection_listing', null, 'collections'],
+        'statamic.cp.collections.show' => ['collection', 'collection', 'collections'],
+        'statamic.cp.collections.entries.index' => ['collection', 'collection', 'collections'],
+        'statamic.cp.collections.tree.index' => ['collection', 'collection', 'collections'],
+        'statamic.cp.collections.entries.edit' => ['entry', 'entry', 'entries'],
+
+        // Taxonomies
+        'statamic.cp.taxonomies.index' => ['taxonomy_listing', null, 'taxonomies'],
+        'statamic.cp.taxonomies.show' => ['taxonomy', 'taxonomy', 'taxonomies'],
+        'statamic.cp.taxonomies.terms.edit' => ['term', 'term', 'taxonomies'],
+
+        // Navigation
+        'statamic.cp.navigation.index' => ['nav_listing', null, 'navigation'],
+        'statamic.cp.navigation.show' => ['nav', 'navigation', 'navigation'],
+
+        // Globals
+        'statamic.cp.globals.index' => ['globals_listing', null, 'globals'],
+        'statamic.cp.globals.variables.edit' => ['globals', 'global_set', 'globals'],
+        'statamic.cp.globals.edit' => ['globals', 'global_set', 'globals'],
+
+        // Assets
+        'statamic.cp.assets.browse.index' => ['asset_listing', null, 'assets'],
+        'statamic.cp.assets.browse.show' => ['asset_container', 'container', 'assets'],
+        'statamic.cp.asset-containers.show' => ['asset_container', 'asset_container', 'assets'],
+        'statamic.cp.assets.show' => ['asset', 'encoded_asset', 'assets'],
+        'statamic.cp.assets.edit' => ['asset', 'encoded_asset', 'assets'],
+
+        // Users & access
+        'statamic.cp.users.edit' => ['user', 'user', 'users'],
+        'statamic.cp.users.index' => ['user_listing', null, 'user_listing'],
+        'statamic.cp.user-groups.index' => ['user_group_listing', null, 'users'],
+        'statamic.cp.roles.index' => ['role_listing', null, 'users'],
+
+        // Forms
+        'statamic.cp.forms.index' => ['form_listing', null, 'forms'],
+        'statamic.cp.forms.show' => ['form', 'form', 'forms'],
+        'statamic.cp.forms.submissions.index' => ['form', 'form', 'forms'],
+        'statamic.cp.forms.submissions.show' => ['submission', 'submission', 'forms'],
+
+        // Fields
+        'statamic.cp.blueprints.index' => ['blueprint_listing', null, 'blueprints'],
+        'statamic.cp.fieldsets.index' => ['fieldset_listing', null, 'blueprints'],
+    ];
 
     public function __construct(private AuditRecorder $recorder)
     {
@@ -79,7 +106,24 @@ class LogCpPageViews
         if (! (bool) config('logbook.activity.enabled', false)) {
             return;
         }
-        if (! $request->isMethod('GET') || $request->expectsJson() || $request->ajax()) {
+        if (! $request->isMethod('GET')) {
+            return;
+        }
+
+        // Statamic 6's CP is Inertia-driven: clicking from one CP page to
+        // another is an axios XHR, which sets X-Requested-With and so looks
+        // like ajax() — but it IS a page view and must be recorded, or only
+        // hard browser reloads ever get logged.
+        //
+        // A partial reload (X-Inertia-Partial-Component) re-fetches props for
+        // the page you are already on, so it is not a new view.
+        if ($request->hasHeader('X-Inertia')) {
+            if ($request->hasHeader('X-Inertia-Partial-Component')) {
+                return;
+            }
+        } elseif ($request->expectsJson() || $request->ajax()) {
+            // A genuine data/API XHR (autosave, field validation, our own
+            // .json endpoints) — not a page the user opened.
             return;
         }
         if (! is_object($response) || ! method_exists($response, 'getStatusCode') || $response->getStatusCode() !== 200) {
@@ -91,7 +135,18 @@ class LogCpPageViews
             return;
         }
 
-        [$type, $param] = self::ROUTES[$routeName];
+        [$type, $param, $pageKey] = self::ROUTES[$routeName];
+
+        // Per-page switches from CP settings. An absent config list means
+        // "all pages" (unconfigured installs).
+        $pages = config('logbook.activity.pages');
+        if (is_array($pages) && ! in_array($pageKey, $pages, true)) {
+            return;
+        }
+
+        if ($this->userIsExcluded()) {
+            return;
+        }
 
         $subjectId = null;
         $handle = null;
@@ -126,8 +181,49 @@ class LogCpPageViews
         ]);
     }
 
+    /**
+     * Role-based exclusions from CP settings ("who gets tracked").
+     */
+    private function userIsExcluded(): bool
+    {
+        $excluded = (array) config('logbook.activity.excluded_roles', []);
+        if ($excluded === []) {
+            return false;
+        }
+
+        try {
+            $user = auth()->user();
+            if ($user === null) {
+                return false;
+            }
+
+            if (in_array(\EmranAlhaddad\StatamicLogbook\Support\SettingsRepository::EXCLUDE_SUPERS, $excluded, true)
+                && method_exists($user, 'isSuper') && $user->isSuper()) {
+                return true;
+            }
+
+            if (method_exists($user, 'roles')) {
+                foreach ($user->roles() as $role) {
+                    $handle = is_object($role) && method_exists($role, 'handle') ? $role->handle() : (string) $role;
+                    if (in_array($handle, $excluded, true)) {
+                        return true;
+                    }
+                }
+            }
+        } catch (\Throwable) {
+            // Unknown user shape — track rather than silently skip.
+        }
+
+        return false;
+    }
+
     private function recentlyViewed(string $type, ?string $subjectId, string $userId): bool
     {
+        $minutes = (int) config('logbook.activity.dedupe_minutes', 5);
+        if ($minutes < 1) {
+            return false; // dedupe disabled
+        }
+
         try {
             $conn = DbConnectionResolver::resolve();
 
@@ -135,7 +231,7 @@ class LogCpPageViews
                 ->where('action', 'statamic.'.$type.'.viewed')
                 ->where('user_id', $userId)
                 ->when($subjectId !== null, fn ($q) => $q->where('subject_id', $subjectId))
-                ->where('created_at', '>=', now()->subMinutes(self::DEDUPE_MINUTES))
+                ->where('created_at', '>=', now()->subMinutes($minutes))
                 ->exists();
         } catch (\Throwable) {
             // If the check fails, prefer a duplicate row over a lost one.

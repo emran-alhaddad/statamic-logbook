@@ -37,6 +37,29 @@ class SettingsRepository
     /** @var list<string> PSR-3 levels, most to least severe */
     public const LEVELS = ['emergency', 'alert', 'critical', 'error', 'warning', 'notice', 'info', 'debug'];
 
+    /**
+     * CP surfaces the page-view tracker can record, key => label.
+     * Keys are shared with LogCpPageViews::ROUTES (test-enforced).
+     *
+     * @var array<string, string>
+     */
+    public const VIEW_PAGES = [
+        'dashboard' => 'Dashboard',
+        'entries' => 'Entry editor',
+        'collections' => 'Collection listings',
+        'taxonomies' => 'Taxonomies & terms',
+        'navigation' => 'Navigation editor',
+        'globals' => 'Globals editor',
+        'assets' => 'Asset browser',
+        'users' => 'User profiles, groups & roles',
+        'user_listing' => 'User listing',
+        'forms' => 'Forms & submissions',
+        'blueprints' => 'Blueprints & fieldsets',
+    ];
+
+    /** Special sentinel in view_excluded_roles meaning "super admins". */
+    public const EXCLUDE_SUPERS = '__super';
+
     /** @var array<string, mixed>|null in-process memo */
     private static ?array $cache = null;
 
@@ -76,6 +99,10 @@ class SettingsRepository
             'audit_logs' => true,
             'disabled_events' => [],
             'activity_views' => false,
+            'view_pages' => array_fill_keys(array_keys(self::VIEW_PAGES), true),
+            'view_dedupe_minutes' => 5,
+            'view_excluded_roles' => [],
+            'view_retention_days' => 30,
             'retention_days' => 365,
             'ignore_fields_extra' => '',
             'ignore_channels_extra' => '',
@@ -202,6 +229,10 @@ class SettingsRepository
             'logbook.system_logs.enabled' => (bool) $s['system_logs'],
             'logbook.audit_logs.enabled' => (bool) $s['audit_logs'],
             'logbook.activity.enabled' => (bool) $s['activity_views'],
+            'logbook.activity.pages' => array_keys(array_filter($s['view_pages'])),
+            'logbook.activity.dedupe_minutes' => (int) $s['view_dedupe_minutes'],
+            'logbook.activity.excluded_roles' => $s['view_excluded_roles'],
+            'logbook.activity.retention_days' => (int) $s['view_retention_days'],
             'logbook.retention_days' => (int) $s['retention_days'],
             // Which log levels the system stream keeps.
             'logbook.system_logs.capture_levels' => array_keys(array_filter($s['system_levels'])),
@@ -241,6 +272,171 @@ class SettingsRepository
     }
 
     /**
+     * Create the settings table if it is missing. Single definition, shared
+     * by {@see \EmranAlhaddad\StatamicLogbook\Console\InstallCommand} and by
+     * upgrade adoption. Never throws — returns whether the table is usable.
+     */
+    public static function ensureTable(): bool
+    {
+        try {
+            $conn = DbConnectionResolver::resolve();
+            $schema = DB::connection($conn)->getSchemaBuilder();
+
+            if ($schema->hasTable(self::TABLE)) {
+                return true;
+            }
+
+            $schema->create(self::TABLE, function ($table): void {
+                $table->string('key', 64)->primary();
+                $table->json('value')->nullable();
+                $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
+            });
+
+            return true;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * Does this install predate the CP settings table? Detected from the log
+     * tables, not {@see isInstalled()} — that checks the settings table,
+     * which by definition does not exist on a pre-2.1 install.
+     */
+    public static function hasLogTables(): bool
+    {
+        try {
+            $schema = DB::connection(DbConnectionResolver::resolve())->getSchemaBuilder();
+
+            return $schema->hasTable('logbook_audit_logs') || $schema->hasTable('logbook_system_logs');
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * Has an operator (or the upgrade adoption) ever written settings?
+     */
+    public static function hasStoredSettings(): bool
+    {
+        try {
+            $conn = DbConnectionResolver::resolve();
+
+            return DB::connection($conn)->table(self::TABLE)->where('key', self::KEY)->exists();
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * Translate the .env / config/logbook.php configuration of a pre-2.1
+     * install into the CP settings shape, so upgrading does not silently
+     * reset an operator's choices.
+     *
+     * Only values that {@see applyToConfig()} would OVERRIDE need importing.
+     * The ignore-channel / ignore-field lists are merged additively on top of
+     * file config, so env-provided entries keep working and the "extra" boxes
+     * stay empty rather than duplicating them.
+     *
+     * @return array<string, mixed>
+     */
+    public static function importFromFileConfig(): array
+    {
+        $s = self::defaults();
+
+        $s['configured'] = true;
+        $s['system_logs'] = (bool) config('logbook.system_logs.enabled', true);
+        $s['audit_logs'] = (bool) config('logbook.audit_logs.enabled', true);
+        $s['retention_days'] = (int) config('logbook.retention_days', $s['retention_days']);
+
+        // Page-view tracking is new and high-volume: never switch it on for
+        // someone who is merely upgrading.
+        $s['activity_views'] = false;
+
+        $s['system_levels'] = self::levelsFromThreshold(
+            (array) config('logbook.system_logs.capture_levels', []),
+            (string) config('logbook.system_logs.level', 'debug')
+        );
+
+        // Env-excluded events are shown as unchecked, so the settings page
+        // reflects what is actually being captured instead of claiming
+        // everything is on.
+        $known = self::knownEventClasses();
+        $s['disabled_events'] = array_values(array_intersect(
+            array_values(array_filter((array) config('logbook.audit_logs.exclude_events', []), 'is_string')),
+            $known
+        ));
+
+        return $s;
+    }
+
+    /**
+     * Per-level switches for an install that only had a minimum-severity
+     * threshold. `capture_levels` (2.1+) wins when present; otherwise every
+     * level at or above the old threshold is enabled — enabling all of them
+     * would multiply an upgrader's log volume.
+     *
+     * @param  list<string>  $captureLevels
+     * @return array<string, bool>
+     */
+    private static function levelsFromThreshold(array $captureLevels, string $threshold): array
+    {
+        $captureLevels = array_values(array_filter($captureLevels, 'is_string'));
+
+        if ($captureLevels !== []) {
+            $on = array_map('strtolower', $captureLevels);
+
+            return array_combine(
+                self::LEVELS,
+                array_map(fn (string $l): bool => in_array($l, $on, true), self::LEVELS)
+            );
+        }
+
+        // self::LEVELS is ordered most → least severe.
+        $cut = array_search(strtolower($threshold), self::LEVELS, true);
+        if ($cut === false) {
+            $cut = count(self::LEVELS) - 1; // unknown threshold → keep everything
+        }
+
+        $out = [];
+        foreach (self::LEVELS as $i => $level) {
+            $out[$level] = $i <= $cut;
+        }
+
+        return $out;
+    }
+
+    /**
+     * Adopt a pre-2.1 install: seed the settings row from env/file config and
+     * mark it configured, so the operator keeps their configuration and is
+     * not sent through first-run database setup.
+     *
+     * Idempotent and safe to call on every request — a no-op once settings
+     * exist, or when there is nothing to adopt.
+     */
+    public static function adoptExistingInstall(): bool
+    {
+        if (! self::hasLogTables() || self::hasStoredSettings()) {
+            return false;
+        }
+
+        // A pre-2.1 install has no settings table yet, so the write below
+        // would fail silently and the operator would be shown first-run
+        // database setup instead.
+        if (! self::ensureTable()) {
+            return false;
+        }
+
+        $ok = self::save(self::importFromFileConfig());
+
+        if ($ok) {
+            self::resetCache();
+        }
+
+        return $ok;
+    }
+
+    /**
      * Reset the in-process memo. Tests + post-save re-reads.
      *
      * @internal
@@ -268,16 +464,28 @@ class SettingsRepository
             $levels[$level] = self::bool($input['system_levels'][$level] ?? true);
         }
 
-        $known = array_merge(...array_values(EventMap::groupPartition()));
+        $known = self::knownEventClasses();
         $disabled = array_values(array_unique(array_filter(
             (array) ($input['disabled_events'] ?? []),
             static fn ($e): bool => is_string($e) && in_array($e, $known, true)
         )));
 
-        $retention = (int) ($input['retention_days'] ?? $d['retention_days']);
-        if ($retention < 1 || $retention > 3650) {
-            $retention = $d['retention_days'];
+        $retention = self::intIn($input['retention_days'] ?? $d['retention_days'], 1, 3650, $d['retention_days']);
+        $viewRetention = self::intIn($input['view_retention_days'] ?? $d['view_retention_days'], 1, 3650, $d['view_retention_days']);
+        $dedupe = self::intIn($input['view_dedupe_minutes'] ?? $d['view_dedupe_minutes'], 0, 1440, $d['view_dedupe_minutes']);
+
+        $pages = [];
+        foreach (array_keys(self::VIEW_PAGES) as $key) {
+            $pages[$key] = self::bool($input['view_pages'][$key] ?? true);
         }
+
+        // Role handles are free-form strings (host-defined); cap length and
+        // count, keep the supers sentinel.
+        $roles = array_values(array_unique(array_filter(array_map(
+            static fn ($r) => is_string($r) ? mb_substr(trim($r), 0, 64) : '',
+            (array) ($input['view_excluded_roles'] ?? [])
+        ))));
+        $roles = array_slice($roles, 0, 50);
 
         return [
             'configured' => self::bool($input['configured'] ?? $d['configured']),
@@ -286,10 +494,31 @@ class SettingsRepository
             'audit_logs' => self::bool($input['audit_logs'] ?? $d['audit_logs']),
             'disabled_events' => $disabled,
             'activity_views' => self::bool($input['activity_views'] ?? $d['activity_views']),
+            'view_pages' => $pages,
+            'view_dedupe_minutes' => $dedupe,
+            'view_excluded_roles' => $roles,
+            'view_retention_days' => $viewRetention,
             'retention_days' => $retention,
             'ignore_fields_extra' => mb_substr(trim((string) ($input['ignore_fields_extra'] ?? '')), 0, 1000),
             'ignore_channels_extra' => mb_substr(trim((string) ($input['ignore_channels_extra'] ?? '')), 0, 1000),
         ];
+    }
+
+    private static function intIn(mixed $v, int $min, int $max, int $fallback): int
+    {
+        $n = (int) $v;
+
+        return ($n < $min || $n > $max) ? $fallback : $n;
+    }
+
+    /**
+     * Every event class the settings page can toggle, across all groups.
+     *
+     * @return list<string>
+     */
+    private static function knownEventClasses(): array
+    {
+        return array_merge(...array_values(EventMap::groupPartition()));
     }
 
     /** @return list<string> */

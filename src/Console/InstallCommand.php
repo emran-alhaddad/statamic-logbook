@@ -195,20 +195,20 @@ class InstallCommand extends Command
      */
     protected function createSettingsTable(string $connection): void
     {
-        $table = 'logbook_settings';
+        $table = \EmranAlhaddad\StatamicLogbook\Support\SettingsRepository::TABLE;
 
         if ($this->safeHasTable($connection, $table)) {
             $this->line("• {$table} already exists");
             return;
         }
 
-        Schema::connection($connection)->create($table, function (Blueprint $table) {
-            $table->string('key', 64)->primary();
-            $table->json('value')->nullable();
-            $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
-        });
+        // One definition, shared with upgrade adoption.
+        if (\EmranAlhaddad\StatamicLogbook\Support\SettingsRepository::ensureTable()) {
+            $this->info("• created {$table}");
+            return;
+        }
 
-        $this->info("• created {$table}");
+        $this->error("❌ could not create {$table}");
     }
 
     /**

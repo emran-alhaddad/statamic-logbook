@@ -120,10 +120,30 @@ return [
         'max_value_length' => (int) env('LOGBOOK_AUDIT_MAX_VALUE_LENGTH', 2000),
     ],
 
-    // CP page-view activity ("who opened what"). Off by default; usually
-    // managed from the CP settings page rather than env.
+    // CP page-view activity ("who opened what"). Off by default; normally
+    // managed from the CP settings page, which overrides every key here.
     'activity' => [
         'enabled' => (bool) env('LOGBOOK_ACTIVITY_ENABLED', false),
+
+        // Which CP surfaces to record. null = every tracked page. Keys are the
+        // page keys in SettingsRepository::VIEW_PAGES (dashboard, entries,
+        // collections, taxonomies, navigation, globals, assets, users,
+        // user_listing, forms, blueprints).
+        'pages' => null,
+
+        // Repeated opens of the same thing by the same user inside this window
+        // collapse into one row. 0 records every open.
+        'dedupe_minutes' => (int) env('LOGBOOK_ACTIVITY_DEDUPE_MINUTES', 5),
+
+        // Role handles never tracked. Use '__super' for super admins.
+        'excluded_roles' => array_values(array_filter(array_map('trim', explode(',', (string) env(
+            'LOGBOOK_ACTIVITY_EXCLUDED_ROLES',
+            ''
+        ))))),
+
+        // Page views are volume, not evidence: they get a shorter retention
+        // window than the audit trail, applied by logbook:prune.
+        'retention_days' => (int) env('LOGBOOK_ACTIVITY_RETENTION_DAYS', 30),
     ],
 
     'retention_days' => (int) env('LOGBOOK_RETENTION_DAYS', 365),

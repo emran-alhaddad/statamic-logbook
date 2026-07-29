@@ -179,16 +179,28 @@
                 <tr>
                     <td class="lb-table__time" title="{{ $row->created_at }}">{{ $humanTime($row->created_at) }}</td>
                     <td>
+                        {{-- Icon + colour: the verb is readable without relying
+                             on hue alone (colour-blind / greyscale printing). --}}
                         <span class="{{ $actionClass($row->action) }}" title="{{ $row->action }}">
-                            <span class="lb-chip__dot" aria-hidden="true"></span>
+                            <svg class="lb-i lb-chip__ico" width="12" height="12" aria-hidden="true"><use href="#{{ AuditActionPresenter::icon($row->action) }}"/></svg>
                             {{ $actionLabel($row->action) }}
                         </span>
                     </td>
                     <td class="lb-cell-clamp">
-                        <div class="lb-cell-clamp__line" title="{{ $subjectLabel }}">{{ $subjectLabel }}</div>
-                        @if($subjectMeta !== '')
-                            <div class="lb-table__muted lb-cell-clamp__line">{{ $subjectMeta }}</div>
-                        @endif
+                        {{-- Component icon + tint from the shared palette, so a
+                             subject reads the same colour as its settings tile. --}}
+                        @php $cmp = AuditActionPresenter::component($row->subject_type); @endphp
+                        <div class="lb-subject">
+                            <span class="lb-icobox lb-icobox--xs" style="--lb-tint:var(--lb-t-{{ $cmp['tint'] }})" aria-hidden="true">
+                                <svg class="lb-i" width="11" height="11"><use href="#{{ $cmp['icon'] }}"/></svg>
+                            </span>
+                            <div class="lb-subject__text">
+                                <div class="lb-cell-clamp__line" title="{{ $subjectLabel }}">{{ $subjectLabel }}</div>
+                                @if($subjectMeta !== '')
+                                    <div class="lb-table__muted lb-cell-clamp__line">{{ $subjectMeta }}</div>
+                                @endif
+                            </div>
+                        </div>
                         @if($changeHint)
                             <div class="lb-change-hint lb-cell-clamp__line" title="{{ $changeHint }}">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17l6-6 4 4 6-6"/><path d="M14 7h6v6"/></svg>

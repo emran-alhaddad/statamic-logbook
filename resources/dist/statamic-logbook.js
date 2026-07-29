@@ -958,4 +958,270 @@
             try { console.info('[logbook]', text); } catch (_) { /* noop */ }
         }
     }
+
+    // ------------------------------------------------------
+    // 6. Settings page (Studio Mix): panes, tiles, drawer,
+    //    search, savebar, views spec, onboarding sequence
+    // ------------------------------------------------------
+    // The settings form lives inside the CP's Vue-mounted DOM, so
+    // per-node listeners attached at parse time are lost when Vue
+    // re-creates the subtree. Everything here is document-level
+    // delegation on bubbling events, immune to remounts.
+
+    var RING_C = 100.5; // tile ring circumference (r=16)
+
+    function lbSyncTile(key) {
+        var members = document.querySelectorAll('[data-lb-ev="' + key + '"]');
+        if (!members.length) return;
+        var on = 0;
+        members.forEach(function (m) { if (m.checked) on++; });
+        var ring = document.querySelector('[data-lb-ringfg="' + key + '"]');
+        var ringn = document.querySelector('[data-lb-ringn="' + key + '"]');
+        if (ring) ring.style.strokeDashoffset = (RING_C * (1 - on / members.length)).toFixed(1);
+        if (ringn) ringn.textContent = on + '/' + members.length;
+    }
+
+    function lbSyncKpis() {
+        var evs = document.querySelectorAll('[data-lb-ev]');
+        var kEv = document.querySelector('[data-lb-kpi-events]');
+        if (kEv && evs.length) {
+            var on = 0;
+            evs.forEach(function (m) { if (m.checked) on++; });
+            kEv.textContent = on + ' / ' + evs.length;
+        }
+        var lvls = document.querySelectorAll('[data-lb-level]');
+        var kLv = document.querySelector('[data-lb-kpi-levels]');
+        if (kLv && lvls.length) {
+            var lOn = 0;
+            lvls.forEach(function (m) { if (m.checked) lOn++; });
+            kLv.textContent = String(lOn);
+        }
+        var master = document.querySelector('[data-lb-views-master]');
+        var kVw = document.querySelector('[data-lb-kpi-views]');
+        if (kVw && master) {
+            kVw.textContent = master.checked ? (kVw.getAttribute('data-views-total') || '0') : 'off';
+        }
+    }
+
+    // Savebar: every form control remembers its server-rendered state in
+    // data-lb-init; the pending-change count is how many differ right now.
+    function lbStamp() {
+        var form = document.querySelector('[data-lb-settings]');
+        if (!form) return;
+        Array.prototype.forEach.call(form.elements, function (el) {
+            if (!el.name || el.dataset.lbInit !== undefined) return;
+            el.dataset.lbInit = (el.type === 'checkbox' || el.type === 'radio') ? String(el.checked) : el.value;
+        });
+    }
+
+    function lbSyncSavebar() {
+        var form = document.querySelector('[data-lb-settings]');
+        var bar = document.querySelector('[data-lb-fbar]');
+        if (!form || !bar) return;
+        var changed = 0;
+        Array.prototype.forEach.call(form.elements, function (el) {
+            if (!el.name || el.dataset.lbInit === undefined) return;
+            var now = (el.type === 'checkbox' || el.type === 'radio') ? String(el.checked) : el.value;
+            if (now !== el.dataset.lbInit) changed++;
+        });
+        bar.classList.toggle('is-show', changed > 0);
+        var n = bar.querySelector('[data-lb-fbar-n]');
+        if (n) n.textContent = changed + ' change' + (changed === 1 ? 's' : '') ;
+    }
+
+    function lbSyncViewsProj() {
+        var proj = document.querySelector('[data-lb-vproj]');
+        if (!proj) return;
+        var total = 0;
+        document.querySelectorAll('[data-lb-vpage]').forEach(function (m) {
+            if (m.checked) total += parseInt(m.getAttribute('data-lb-vpage'), 10) || 0;
+        });
+        proj.textContent = total.toLocaleString();
+    }
+
+    function lbSettingsSyncAll() {
+        document.querySelectorAll('[data-lb-tile]').forEach(function (t) {
+            lbSyncTile(t.getAttribute('data-lb-tile'));
+        });
+        document.querySelectorAll('[data-lb-section]').forEach(function (section) {
+            var master = section.querySelector('[data-lb-section-master]');
+            if (master) section.classList.toggle('is-off', !master.checked);
+        });
+        var vm = document.querySelector('[data-lb-views-master]');
+        var vb = document.querySelector('[data-lb-views-body]');
+        if (vm && vb) vb.classList.toggle('is-off', !vm.checked);
+        lbStamp();
+        lbSyncKpis();
+        lbSyncSavebar();
+        lbSyncViewsProj();
+    }
+
+    function lbDrawerOpen(key) {
+        var drawer = document.querySelector('[data-lb-drawer]');
+        var veil = document.querySelector('[data-lb-veil]');
+        if (!drawer) return;
+        drawer.querySelectorAll('[data-lb-drawer-pane]').forEach(function (p) {
+            p.hidden = p.getAttribute('data-lb-drawer-pane') !== key;
+        });
+        drawer.classList.add('is-show');
+        if (veil) veil.classList.add('is-show');
+    }
+
+    function lbDrawerClose() {
+        var drawer = document.querySelector('[data-lb-drawer]');
+        var veil = document.querySelector('[data-lb-veil]');
+        if (drawer) drawer.classList.remove('is-show');
+        if (veil) veil.classList.remove('is-show');
+    }
+
+    document.addEventListener('click', function (e) {
+        var t = e.target;
+
+        var tab = t.closest && t.closest('[data-lb-pilltab]');
+        if (tab) {
+            var pane = tab.getAttribute('data-lb-pilltab');
+            document.querySelectorAll('[data-lb-pilltab]').forEach(function (p) { p.classList.toggle('is-on', p === tab); });
+            document.querySelectorAll('[data-lb-pane]').forEach(function (p) {
+                p.classList.toggle('is-on', p.getAttribute('data-lb-pane') === pane);
+            });
+            return;
+        }
+
+        var tile = t.closest && t.closest('[data-lb-tile]');
+        if (tile) { lbDrawerOpen(tile.getAttribute('data-lb-tile')); return; }
+
+        if (t.closest && (t.closest('[data-lb-drawer-close]') || t.closest('[data-lb-veil]'))) {
+            lbDrawerClose();
+            return;
+        }
+
+        var dq = t.closest && t.closest('[data-lb-dq]');
+        if (dq) {
+            var mode = dq.getAttribute('data-lb-dq');
+            var paneEl = dq.closest('[data-lb-drawer-pane]');
+            if (!paneEl) return;
+            paneEl.querySelectorAll('[data-lb-ev]').forEach(function (m) {
+                m.checked = mode === 'all' ? true : mode === 'none' ? false : !m.checked;
+            });
+            var key = paneEl.getAttribute('data-lb-drawer-pane');
+            lbSyncTile(key);
+            lbSyncKpis();
+            lbSyncSavebar();
+            return;
+        }
+
+        var discard = t.closest && t.closest('[data-lb-fbar-discard]');
+        if (discard) {
+            var form = document.querySelector('[data-lb-settings]');
+            if (!form) return;
+            Array.prototype.forEach.call(form.elements, function (el) {
+                if (!el.name || el.dataset.lbInit === undefined) return;
+                if (el.type === 'checkbox' || el.type === 'radio') el.checked = el.dataset.lbInit === 'true';
+                else el.value = el.dataset.lbInit;
+            });
+            lbSettingsSyncAll();
+        }
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') lbDrawerClose();
+    });
+
+    document.addEventListener('change', function (e) {
+        var t = e.target;
+        if (!t || !t.getAttribute) return;
+
+        var evKey = t.getAttribute('data-lb-ev');
+        if (evKey !== null) lbSyncTile(evKey);
+
+        if (t.hasAttribute('data-lb-section-master')) {
+            var section = t.closest('[data-lb-section]');
+            if (section) section.classList.toggle('is-off', !t.checked);
+        }
+
+        if (t.hasAttribute('data-lb-views-master')) {
+            var body = document.querySelector('[data-lb-views-body]');
+            if (body) body.classList.toggle('is-off', !t.checked);
+            var dot = document.querySelector('[data-lb-views-dot]');
+            if (dot) dot.classList.toggle('lb-dot--ok', t.checked);
+        }
+
+        if (t.hasAttribute('data-lb-vpage')) lbSyncViewsProj();
+
+        // Any change inside the settings form re-counts the savebar.
+        if (t.closest && t.closest('[data-lb-settings]')) {
+            lbSyncKpis();
+            lbSyncSavebar();
+        }
+    });
+
+    // Event search: dim tiles with no matching event label, show hit count.
+    document.addEventListener('input', function (e) {
+        var t = e.target;
+        if (!t || !t.hasAttribute || !t.hasAttribute('data-lb-search')) return;
+        var q = t.value.trim().toLowerCase();
+        document.querySelectorAll('[data-lb-tile]').forEach(function (tile) {
+            var hit = tile.querySelector('[data-lb-hit]');
+            if (q === '') {
+                tile.classList.remove('is-dim');
+                if (hit) hit.hidden = true;
+                return;
+            }
+            var events = (tile.getAttribute('data-lb-events') || '').split('|');
+            var hits = events.filter(function (ev) { return ev.indexOf(q) !== -1; }).length;
+            tile.classList.toggle('is-dim', hits === 0);
+            if (hit) {
+                hit.hidden = hits === 0;
+                hit.textContent = hits + ' hit' + (hits === 1 ? '' : 's');
+            }
+        });
+    });
+
+    // Onboarding: the connect form posts normally; while the server runs
+    // the install we play the step sequence (checks, ring, status) so the
+    // wait reads as progress. The response redirects into settings.
+    document.addEventListener('submit', function (e) {
+        var form = e.target;
+        if (!form || !form.hasAttribute || !form.hasAttribute('data-lb-ob')) return;
+
+        var C = 326.7;
+        var stages = [
+            { pct: 30, label: 'Database connected' },
+            { pct: 66, label: 'Tables created' },
+            { pct: 88, label: 'Credentials persisted' },
+        ];
+        var ring = document.querySelector('[data-lb-ob-ring]');
+        var ringn = document.querySelector('[data-lb-ob-ringn]');
+        var status = document.querySelector('[data-lb-ob-status]');
+        var s1 = document.querySelector('[data-lb-ob-step="1"]');
+        var s2 = document.querySelector('[data-lb-ob-step="2"]');
+        var hint1 = document.querySelector('[data-lb-ob-hint="1"]');
+        var db = form.querySelector('[name="database"]');
+
+        if (s1) { s1.classList.remove('is-now'); s1.classList.add('is-done'); }
+        if (s2) s2.classList.add('is-now');
+        if (hint1 && db && db.value) hint1.textContent = 'Connecting to ' + db.value + '…';
+
+        var checks = document.querySelectorAll('[data-lb-ob-check] .lb-obcheck__stat');
+        checks.forEach(function (stat, i) {
+            stat.innerHTML = '<span class="lb-spin"></span>';
+            setTimeout(function () {
+                stat.innerHTML = '<svg class="lb-i" width="14" height="14" style="color:#22c55e"><use href="#lbi-check"/></svg> done';
+                if (ring && stages[i]) ring.style.strokeDashoffset = (C * (1 - stages[i].pct / 100)).toFixed(1);
+                if (ringn && stages[i]) ringn.textContent = stages[i].pct + '%';
+                if (status && stages[i]) status.textContent = stages[i].label;
+            }, 500 + i * 620);
+        });
+        // The real outcome arrives with the redirect; this is theatre for
+        // the wait, so it never reaches 100% on its own.
+    });
+
+    // Initial state (rings, KPI numbers, change snapshot) can't be fully
+    // expressed in HTML and the Vue mount timing is not observable from
+    // here, so retry the sync a few times after load. Cheap and idempotent.
+    [0, 250, 750, 1500].forEach(function (delay) {
+        setTimeout(lbSettingsSyncAll, delay);
+    });
+    document.addEventListener('DOMContentLoaded', lbSettingsSyncAll);
+
 })();

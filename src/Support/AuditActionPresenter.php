@@ -20,6 +20,118 @@ namespace EmranAlhaddad\StatamicLogbook\Support;
 class AuditActionPresenter
 {
     /**
+     * The component palette — ONE source of truth for the colour and icon
+     * of each Statamic component, shared by the settings tiles, the audit
+     * listing and the page-view rows so a component looks identical
+     * everywhere. Keys match {@see SettingsRepository::groupLabels()}.
+     *
+     * Tints are the `--lb-t-*` CSS custom properties; icons are `<symbol>`
+     * ids from the sprite in the CP layout.
+     *
+     * @var array<string, array{0: string, 1: string}>  group => [tint, icon]
+     */
+    public const GROUP_COMPONENTS = [
+        'entries' => ['indigo', 'lbi-file'],
+        'collections' => ['sky', 'lbi-folder'],
+        'taxonomies' => ['amber', 'lbi-tag'],
+        'navigation' => ['emerald', 'lbi-map'],
+        'globals' => ['cyan', 'lbi-globe'],
+        'assets' => ['orange', 'lbi-img'],
+        'blueprints' => ['violet', 'lbi-layout'],
+        'forms' => ['pink', 'lbi-inbox'],
+        'users' => ['rose', 'lbi-users'],
+        'sites' => ['teal', 'lbi-server'],
+        // Page-view-only surfaces (no matching audit event group).
+        'dashboard' => ['indigo', 'lbi-home'],
+        'user_listing' => ['rose', 'lbi-users'],
+    ];
+
+    /**
+     * `subject_type` (as written to the audit row) → component group.
+     * Anything unmapped renders in the neutral grey component.
+     *
+     * @var array<string, string>
+     */
+    public const SUBJECT_GROUPS = [
+        'entry' => 'entries',
+        'collection' => 'collections',
+        'tree' => 'collections',
+        'taxonomy' => 'taxonomies',
+        'term' => 'taxonomies',
+        'nav' => 'navigation',
+        'globals' => 'globals',
+        'global_variables' => 'globals',
+        'asset' => 'assets',
+        'asset_container' => 'assets',
+        'blueprint' => 'blueprints',
+        'fieldset' => 'blueprints',
+        'form' => 'forms',
+        'submission' => 'forms',
+        'user' => 'users',
+        'user_group' => 'users',
+        'role' => 'users',
+        'auth' => 'users',
+        'site' => 'sites',
+        'addon' => 'sites',
+        'dashboard' => 'dashboard',
+        'user_listing' => 'user_listing',
+        // Listing/index pages recorded by the page-view tracker.
+        'collection_listing' => 'collections',
+        'taxonomy_listing' => 'taxonomies',
+        'nav_listing' => 'navigation',
+        'globals_listing' => 'globals',
+        'asset_listing' => 'assets',
+        'form_listing' => 'forms',
+        'user_group_listing' => 'users',
+        'role_listing' => 'users',
+        'blueprint_listing' => 'blueprints',
+        'fieldset_listing' => 'blueprints',
+    ];
+
+    /**
+     * Verb → sprite icon for the action badge. Pairs with {@see variant()}
+     * (which supplies the colour) so an action is identifiable by shape as
+     * well as hue — colour alone is not an accessible signal.
+     *
+     * @var array<string, string>
+     */
+    private const VARIANT_ICONS = [
+        'create' => 'lbi-plus',
+        'update' => 'lbi-pencil',
+        'delete' => 'lbi-trash',
+        'auth' => 'lbi-login',
+        'fail' => 'lbi-alert',
+        'view' => 'lbi-eye',
+        'muted' => 'lbi-dot',
+    ];
+
+    /**
+     * Sprite icon id for an action's badge.
+     */
+    public static function icon(string $action): string
+    {
+        return self::VARIANT_ICONS[self::variant($action)] ?? 'lbi-dot';
+    }
+
+    /**
+     * Resolve the component styling for a subject type.
+     *
+     * @return array{group: ?string, tint: string, icon: string}
+     */
+    public static function component(?string $subjectType): array
+    {
+        $group = self::SUBJECT_GROUPS[(string) $subjectType] ?? null;
+
+        if ($group === null || ! isset(self::GROUP_COMPONENTS[$group])) {
+            return ['group' => null, 'tint' => 'zinc', 'icon' => 'lbi-server'];
+        }
+
+        [$tint, $icon] = self::GROUP_COMPONENTS[$group];
+
+        return ['group' => $group, 'tint' => $tint, 'icon' => $icon];
+    }
+
+    /**
      * Known action strings → short human-readable verb phrase.
      *
      * Keep these concise — they render inside a chip. Longer context
@@ -174,6 +286,17 @@ class AuditActionPresenter
         'statamic.user_listing.viewed'    => 'User list opened',
         'statamic.form.viewed'            => 'Form opened',
         'statamic.submission.viewed'      => 'Submission opened',
+        'statamic.asset.viewed'           => 'Asset opened',
+        'statamic.collection_listing.viewed' => 'Collection list opened',
+        'statamic.taxonomy_listing.viewed'   => 'Taxonomy list opened',
+        'statamic.nav_listing.viewed'        => 'Navigation list opened',
+        'statamic.globals_listing.viewed'    => 'Globals list opened',
+        'statamic.asset_listing.viewed'      => 'Asset browser opened',
+        'statamic.form_listing.viewed'       => 'Form list opened',
+        'statamic.user_group_listing.viewed' => 'User group list opened',
+        'statamic.role_listing.viewed'       => 'Role list opened',
+        'statamic.blueprint_listing.viewed'  => 'Blueprint list opened',
+        'statamic.fieldset_listing.viewed'   => 'Fieldset list opened',
 
         // --- Catch-all fallback used when no specific mapping matched ------
         'statamic.statamic.event' => 'Statamic event',
@@ -191,9 +314,21 @@ class AuditActionPresenter
         if (str_contains($a, 'deleted') || str_ends_with($a, '.delete')) {
             return 'delete';
         }
+        // Page views are reads, not changes — violet, matching the
+        // "Page Views" section in settings, and visually quieter than
+        // any of the mutation verbs.
+        if (str_ends_with($a, '.viewed')) {
+            return 'view';
+        }
         // Creation — green.
         if (str_contains($a, 'created') || str_contains($a, 'uploaded') || str_contains($a, 'registered')) {
             return 'create';
+        }
+        // Failed attempts (sign-in, two-factor) are the security signal you
+        // scan this table for — red, ahead of the generic auth colour, so a
+        // failure never blends in with a successful sign-in.
+        if (str_contains($a, 'failed') || str_contains($a, 'failure')) {
+            return 'fail';
         }
         // Auth events — indigo/violet (info-variant).
         if (str_contains($a, 'login') || str_contains($a, 'logout') || str_contains($a, 'loggedin') || str_contains($a, 'loggedout')
@@ -305,22 +440,6 @@ class AuditActionPresenter
         }
 
         return $line;
-    }
-
-    /**
-     * Return the FQCN-ish icon key for an action, for callers that want
-     * to swap out SVG marks per variant. Currently only used for
-     * presentational parity — callers may ignore.
-     */
-    public static function icon(string $action): string
-    {
-        return match (self::variant($action)) {
-            'delete' => 'trash',
-            'create' => 'plus',
-            'auth'   => 'key',
-            'update' => 'edit',
-            default  => 'dot',
-        };
     }
 
     /**

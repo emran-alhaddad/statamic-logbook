@@ -44,6 +44,15 @@ class LogbookUtilityController
             return false;
         }
 
+        // Upgraded from a pre-2.1 version: the log tables already exist but
+        // there is no settings row yet. Adopt the existing .env configuration
+        // instead of showing first-run database setup, which would look like
+        // the install was lost and would overwrite their config with defaults.
+        // Idempotent, and a no-op on a genuinely fresh install.
+        if (SettingsRepository::adoptExistingInstall()) {
+            return false;
+        }
+
         try {
             return (bool) ($request->user()?->can('configure logbook') ?? false);
         } catch (Throwable) {
@@ -58,6 +67,10 @@ class LogbookUtilityController
      */
     public function settings(Request $request)
     {
+        // Upgraded install: adopt the existing .env configuration before
+        // deciding whether to render first-run setup. No-op otherwise.
+        SettingsRepository::adoptExistingInstall();
+
         $installed = SettingsRepository::isInstalled();
         $dbOk = false;
         $dbError = null;
@@ -80,10 +93,24 @@ class LogbookUtilityController
             ];
         }
 
+        // Role handles for the "don't track" exclusions. No role driver
+        // (or a broken one) just means only the supers switch renders.
+        $roles = [];
+        try {
+            foreach (\Statamic\Facades\Role::all() as $role) {
+                $roles[$role->handle()] = $role->title();
+            }
+        } catch (Throwable) {
+        }
+
         return view('statamic-logbook::cp.logbook.settings', [
             'settings' => SettingsRepository::current(),
             'groups' => $groups,
             'levels' => SettingsRepository::LEVELS,
+            'viewPages' => SettingsRepository::VIEW_PAGES,
+            'roles' => $roles,
+            'superSentinel' => SettingsRepository::EXCLUDE_SUPERS,
+            'volumes' => $this->sevenDayVolumes(),
             'streams' => SettingsRepository::streams(),
             'configured' => SettingsRepository::isConfigured(),
             'installed' => $installed,
@@ -95,6 +122,61 @@ class LogbookUtilityController
             'setupError' => (string) $request->session()->get('logbook_setup_error', ''),
             'installOutput' => (string) $request->session()->get('logbook_install_output', ''),
         ]);
+    }
+
+    /**
+     * Real 7-day row counts feeding the settings page volume bars:
+     * system rows per level, audit rows per event group, page views
+     * per tracked page. Two grouped queries; empty arrays on DB failure.
+     *
+     * @return array{levels: array<string, int>, groups: array<string, int>, views: array<string, int>, views_total: int}
+     */
+    private function sevenDayVolumes(): array
+    {
+        $out = ['levels' => [], 'groups' => [], 'views' => [], 'views_total' => 0];
+
+        // ponytail: audit actions are "statamic.{type}.{verb}" — subject
+        // type approximates the settings group; unmatched types are ignored.
+        $typeToGroup = \EmranAlhaddad\StatamicLogbook\Support\AuditActionPresenter::SUBJECT_GROUPS;
+        $typeToPage = [];
+        foreach (\EmranAlhaddad\StatamicLogbook\Http\Middleware\LogCpPageViews::ROUTES as [$type, , $pageKey]) {
+            $typeToPage[$type] = $pageKey;
+        }
+
+        try {
+            $conn = DbConnectionResolver::resolve();
+            $since = now()->subDays(7);
+
+            foreach (DB::connection($conn)->table('logbook_system_logs')
+                ->where('created_at', '>=', $since)
+                ->selectRaw('level, count(*) as n')->groupBy('level')->get() as $row) {
+                $out['levels'][strtolower((string) $row->level)] = (int) $row->n;
+            }
+
+            foreach (DB::connection($conn)->table('logbook_audit_logs')
+                ->where('created_at', '>=', $since)
+                ->selectRaw('action, count(*) as n')->groupBy('action')->get() as $row) {
+                $parts = explode('.', (string) $row->action);
+                if (count($parts) < 3) {
+                    continue;
+                }
+                [, $type, $verb] = $parts;
+                if ($verb === 'viewed') {
+                    $page = $typeToPage[$type] ?? null;
+                    if ($page !== null) {
+                        $out['views'][$page] = ($out['views'][$page] ?? 0) + (int) $row->n;
+                        $out['views_total'] += (int) $row->n;
+                    }
+                } elseif (isset($typeToGroup[$type])) {
+                    $g = $typeToGroup[$type];
+                    $out['groups'][$g] = ($out['groups'][$g] ?? 0) + (int) $row->n;
+                }
+            }
+        } catch (Throwable) {
+            // Volume bars are decoration — settings must render without a DB.
+        }
+
+        return $out;
     }
 
     /**
@@ -167,10 +249,11 @@ class LogbookUtilityController
             'LOGBOOK_DB_PASSWORD' => $db['password'],
         ]);
 
+        // Seed from the effective env/config rather than bare defaults, so an
+        // operator who reaches this screen on an EXISTING install keeps their
+        // LOGBOOK_* configuration instead of having it reset.
         SettingsRepository::resetCache();
-        $defaults = SettingsRepository::defaults();
-        $defaults['configured'] = true;
-        SettingsRepository::save($defaults);
+        SettingsRepository::save(SettingsRepository::importFromFileConfig());
 
         return redirect()->to(cp_route('utilities.logbook.settings'))
             ->with('logbook_settings_saved', true)
@@ -208,6 +291,12 @@ class LogbookUtilityController
             'audit_logs' => $request->boolean('audit_logs'),
             'disabled_events' => $disabled,
             'activity_views' => $request->boolean('activity_views'),
+            'view_pages' => collect(array_keys(SettingsRepository::VIEW_PAGES))
+                ->mapWithKeys(fn (string $key) => [$key => $request->boolean("view_pages.{$key}")])
+                ->all(),
+            'view_dedupe_minutes' => (int) $request->input('view_dedupe_minutes', 5),
+            'view_excluded_roles' => (array) $request->input('view_excluded_roles', []),
+            'view_retention_days' => (int) $request->input('view_retention_days', 30),
             'retention_days' => (int) $request->input('retention_days', 365),
             'ignore_fields_extra' => (string) $request->input('ignore_fields_extra', ''),
             'ignore_channels_extra' => (string) $request->input('ignore_channels_extra', ''),
@@ -314,27 +403,38 @@ class LogbookUtilityController
 
         $q = DB::connection($conn)->table('logbook_audit_logs');
 
-        if ($from = $request->get('from')) {
+        // Coerced to scalars: `?from[]=x` otherwise reached a (string) cast and
+        // 500'd the page. The view is handed these values, not raw input.
+        $filters = [
+            'from' => self::scalarParam($request->get('from')),
+            'to' => self::scalarParam($request->get('to')),
+            'action' => self::scalarParam($request->get('action')),
+            'subject_type' => self::scalarParam($request->get('subject_type')),
+            'user_id' => self::scalarParam($request->get('user_id')),
+            'q' => trim(self::scalarParam($request->get('q'))),
+        ];
+
+        if ($from = $filters['from']) {
             $q->whereDate('created_at', '>=', $from);
         }
 
-        if ($to = $request->get('to')) {
+        if ($to = $filters['to']) {
             $q->whereDate('created_at', '<=', $to);
         }
 
-        if ($action = $request->get('action')) {
+        if ($action = $filters['action']) {
             $q->where('action', $action);
         }
 
-        if ($subject = $request->get('subject_type')) {
+        if ($subject = $filters['subject_type']) {
             $q->where('subject_type', $subject);
         }
 
-        if ($user = $request->get('user_id')) {
+        if ($user = $filters['user_id']) {
             $q->where('user_id', $user);
         }
 
-        if ($search = trim((string) $request->get('q'))) {
+        if ($search = $filters['q']) {
             $q->where(function ($qq) use ($search) {
                 $qq->where('subject_title', 'like', "%{$search}%")
                     ->orWhere('subject_handle', 'like', "%{$search}%");
@@ -361,7 +461,7 @@ class LogbookUtilityController
         $stats = $this->auditStats($conn);
 
         return view('statamic-logbook::cp.logbook.audit', [
-            'filters' => $request->all(),
+            'filters' => $filters,
             'logs' => $logs,
             'stats' => $stats,
             'actions' => $actions,
@@ -395,15 +495,27 @@ class LogbookUtilityController
 
         $conn = DbConnectionResolver::resolve();
 
-        $from = $request->get('from');
-        $to   = $request->get('to');
-        $q    = trim((string) $request->get('q'));
-        $types = (array) $request->get('types', ['system', 'audit']);
-        $types = array_values(array_intersect($types, ['system', 'audit'])) ?: ['system', 'audit'];
-        $sev = (array) $request->get('sev', []);
-        $sev = array_values(array_intersect($sev, ['error', 'warn', 'info']));
+        // Query params are attacker/crawler-controlled: `?q[]=x` used to reach
+        // (string) on an array and 500 the page, so everything is coerced to a
+        // scalar here and the view is handed these values, not $request->all().
+        $from = self::scalarParam($request->get('from'));
+        $to = self::scalarParam($request->get('to'));
+        $q = trim(self::scalarParam($request->get('q')));
 
-        $limit = max(20, min(500, (int) $request->get('limit', 200)));
+        $types = self::stringList($request->get('types', ['system', 'audit']), ['system', 'audit'])
+            ?: ['system', 'audit'];
+
+        // A stream switched off in CP settings has no tab and its page 404s;
+        // it must not leak into the Timeline either.
+        $types = array_values(array_filter($types, fn (string $t): bool => (bool) ($streams[$t] ?? false)));
+
+        // Severity describes system log levels. Audit events have no level, so
+        // this narrows the system stream only — it must never silently empty
+        // the audit stream (which it did, via an `in_array('audit', $sev)`
+        // test that no value in this list could ever satisfy).
+        $sev = self::stringList($request->get('sev'), ['error', 'warn', 'info']);
+
+        $limit = max(20, min(500, (int) self::scalarParam($request->get('limit', 200))));
 
         $items = [];
 
@@ -438,7 +550,7 @@ class LogbookUtilityController
             }
         }
 
-        if (in_array('audit', $types, true) && (empty($sev) || in_array('audit', $sev, true))) {
+        if (in_array('audit', $types, true)) {
             $aud = DB::connection($conn)->table('logbook_audit_logs');
             if ($from) $aud->whereDate('created_at', '>=', $from);
             if ($to)   $aud->whereDate('created_at', '<=', $to);
@@ -500,13 +612,38 @@ class LogbookUtilityController
         }
 
         return view('statamic-logbook::cp.logbook.timeline', [
-            'filters'   => $request->all(),
+            // Sanitised scalars — never raw request input, which may be arrays.
+            'filters'   => ['from' => $from, 'to' => $to, 'q' => $q],
             'grouped'   => $grouped,
             'types'     => $types,
             'sev'       => $sev,
+            'streams'   => $streams,
             'itemCount' => count($items),
             'limit'     => $limit,
         ]);
+    }
+
+    /**
+     * Coerce a query parameter to a string. Arrays / objects become '' rather
+     * than fatalling on a (string) cast.
+     */
+    private static function scalarParam(mixed $v): string
+    {
+        return is_scalar($v) ? (string) $v : '';
+    }
+
+    /**
+     * Coerce a query parameter to a list of allowed string values, dropping
+     * anything non-string (including nested arrays).
+     *
+     * @param  list<string>  $allowed
+     * @return list<string>
+     */
+    private static function stringList(mixed $v, array $allowed): array
+    {
+        $items = array_filter(is_array($v) ? $v : [$v], 'is_string');
+
+        return array_values(array_intersect($items, $allowed));
     }
 
     /**

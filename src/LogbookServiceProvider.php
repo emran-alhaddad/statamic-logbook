@@ -9,6 +9,7 @@ use EmranAlhaddad\StatamicLogbook\Audit\ChangeDetector;
 use EmranAlhaddad\StatamicLogbook\Audit\StatamicAuditSubscriber;
 use EmranAlhaddad\StatamicLogbook\Console\FlushSpoolCommand;
 use EmranAlhaddad\StatamicLogbook\Console\InstallCommand;
+use EmranAlhaddad\StatamicLogbook\Console\UpgradeCommand;
 use EmranAlhaddad\StatamicLogbook\Console\PruneCommand;
 use EmranAlhaddad\StatamicLogbook\Http\Controllers\LogbookUtilityController;
 use EmranAlhaddad\StatamicLogbook\Http\Middleware\LogbookRequestContext;
@@ -159,6 +160,7 @@ class LogbookServiceProvider extends AddonServiceProvider
 
         $this->commands([
             InstallCommand::class,
+            UpgradeCommand::class,
             PruneCommand::class,
             FlushSpoolCommand::class,
         ]);

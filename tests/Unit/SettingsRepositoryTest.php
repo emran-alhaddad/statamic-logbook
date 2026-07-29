@@ -190,6 +190,26 @@ final class SettingsRepositoryTest extends TestCase
         );
     }
 
+    public function test_sanitize_coerces_page_view_settings(): void
+    {
+        $clean = SettingsRepository::sanitize([
+            'view_pages' => ['dashboard' => '0', 'bogus_page' => '1'],
+            'view_dedupe_minutes' => '0',        // 0 = dedupe off, valid
+            'view_retention_days' => 99999,      // out of range → default
+            'view_excluded_roles' => [SettingsRepository::EXCLUDE_SUPERS, 'editor', 12345, str_repeat('r', 200)],
+        ]);
+
+        $this->assertFalse($clean['view_pages']['dashboard']);
+        $this->assertTrue($clean['view_pages']['entries']); // absent → on
+        $this->assertArrayNotHasKey('bogus_page', $clean['view_pages']);
+        $this->assertSame(0, $clean['view_dedupe_minutes']);
+        $this->assertSame(30, $clean['view_retention_days']);
+        $this->assertContains(SettingsRepository::EXCLUDE_SUPERS, $clean['view_excluded_roles']);
+        $this->assertContains('editor', $clean['view_excluded_roles']);
+        $this->assertNotContains('12345', $clean['view_excluded_roles']);
+        $this->assertSame(64, mb_strlen($clean['view_excluded_roles'][2]));
+    }
+
     public function test_sanitize_rejects_out_of_range_retention(): void
     {
         $this->assertSame(365, SettingsRepository::sanitize(['retention_days' => 0])['retention_days']);

@@ -1,7 +1,6 @@
 @extends('statamic-logbook::cp.logbook._layout', ['active' => 'timeline'])
 
 @php
-    $b64 = fn($v) => base64_encode((string) $v);
     $humanTime = function ($carbon) {
         try {
             return $carbon->diffForHumans();
@@ -24,8 +23,20 @@
         default => 'system',
     };
 
+    /** Level → chip variant, identical to the System Logs page so a level
+        is the same colour on both screens. ('system' is not a chip variant —
+        using it left INFO/DEBUG rows with an unstyled chip.) */
+    $levelChip = fn ($level) => match (strtolower((string) $level)) {
+        'emergency', 'alert', 'critical', 'error' => 'error',
+        'warning' => 'warn',
+        'notice', 'info' => 'info',
+        'debug' => 'debug',
+        default => 'muted',
+    };
+
     $sevSelected  = (array) ($sev ?? []);
     $typesChecked = (array) ($types ?? ['system', 'audit']);
+    $lbStreams    = (array) ($streams ?? ['system' => true, 'audit' => true]);
 @endphp
 
 @section('panel')
@@ -35,27 +46,32 @@
             <input type="date" name="from" value="{{ $filters['from'] ?? '' }}" class="lb-input lb-field-sm" aria-label="From date">
             <input type="date" name="to"   value="{{ $filters['to'] ?? '' }}"   class="lb-input lb-field-sm" aria-label="To date">
 
-            <label class="lb-pill {{ in_array('system', $typesChecked, true) ? 'lb-pill--active' : '' }}">
-                <input type="checkbox" name="types[]" value="system" {{ in_array('system', $typesChecked, true) ? 'checked' : '' }} class="lb-sr-only">
-                System
-            </label>
-            <label class="lb-pill {{ in_array('audit', $typesChecked, true) ? 'lb-pill--active' : '' }}">
-                <input type="checkbox" name="types[]" value="audit" {{ in_array('audit', $typesChecked, true) ? 'checked' : '' }} class="lb-sr-only">
-                Audit
-            </label>
+            {{-- Only offer a stream that is actually switched on in settings. --}}
+            @if($lbStreams['system'] ?? false)
+                <label class="lb-pill {{ in_array('system', $typesChecked, true) ? 'lb-pill--active' : '' }}">
+                    <input type="checkbox" name="types[]" value="system" {{ in_array('system', $typesChecked, true) ? 'checked' : '' }} class="lb-sr-only">
+                    System
+                </label>
+            @endif
+            @if($lbStreams['audit'] ?? false)
+                <label class="lb-pill {{ in_array('audit', $typesChecked, true) ? 'lb-pill--active' : '' }}">
+                    <input type="checkbox" name="types[]" value="audit" {{ in_array('audit', $typesChecked, true) ? 'checked' : '' }} class="lb-sr-only">
+                    Audit
+                </label>
+            @endif
 
-            <label class="lb-pill {{ in_array('error', $sevSelected, true) ? 'lb-pill--active' : '' }}">
-                <input type="checkbox" name="sev[]" value="error" {{ in_array('error', $sevSelected, true) ? 'checked' : '' }} class="lb-sr-only">
-                Errors
-            </label>
-            <label class="lb-pill {{ in_array('warn', $sevSelected, true) ? 'lb-pill--active' : '' }}">
-                <input type="checkbox" name="sev[]" value="warn" {{ in_array('warn', $sevSelected, true) ? 'checked' : '' }} class="lb-sr-only">
-                Warnings
-            </label>
-            <label class="lb-pill {{ in_array('info', $sevSelected, true) ? 'lb-pill--active' : '' }}">
-                <input type="checkbox" name="sev[]" value="info" {{ in_array('info', $sevSelected, true) ? 'checked' : '' }} class="lb-sr-only">
-                Info
-            </label>
+            {{-- Severity is a system-log concept; it narrows the System stream
+                 and leaves audit events alone. --}}
+            @if($lbStreams['system'] ?? false)
+                <span class="lb-filter__sep" aria-hidden="true"></span>
+                @foreach(['error' => 'Errors', 'warn' => 'Warnings', 'info' => 'Info'] as $sevKey => $sevLabel)
+                    <label class="lb-pill {{ in_array($sevKey, $sevSelected, true) ? 'lb-pill--active' : '' }}"
+                           title="System log level — does not affect audit events">
+                        <input type="checkbox" name="sev[]" value="{{ $sevKey }}" {{ in_array($sevKey, $sevSelected, true) ? 'checked' : '' }} class="lb-sr-only">
+                        {{ $sevLabel }}
+                    </label>
+                @endforeach
+            @endif
         </div>
 
         <div class="lb-filter__row">
@@ -102,7 +118,7 @@
                         <div class="lb-timeline__body">
                             <p class="lb-timeline__msg">
                                 @if($it['type'] === 'system')
-                                    <span class="lb-chip lb-chip--{{ $variant }}" style="margin-right: var(--lb-s-2);">
+                                    <span class="lb-chip lb-chip--{{ $levelChip($it['label']) }}" style="margin-right: var(--lb-s-2);">
                                         <span class="lb-chip__dot" aria-hidden="true"></span>
                                         {{ strtoupper($it['label']) }}
                                     </span>
@@ -114,7 +130,7 @@
                                     <span class="lb-chip lb-chip--{{ $it['variant'] ?? 'update' }}"
                                           style="margin-right: var(--lb-s-2);"
                                           title="{{ $it['actionRaw'] ?? '' }}">
-                                        <span class="lb-chip__dot" aria-hidden="true"></span>
+                                        <svg class="lb-i lb-chip__ico" width="12" height="12" aria-hidden="true"><use href="#{{ \EmranAlhaddad\StatamicLogbook\Support\AuditActionPresenter::icon((string) ($it['actionRaw'] ?? '')) }}"/></svg>
                                         {{ $it['label'] }}
                                     </span>
                                 @endif

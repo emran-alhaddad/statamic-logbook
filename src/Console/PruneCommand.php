@@ -43,6 +43,16 @@ class PruneCommand extends Command
         $this->line("• System logs to delete: {$systemCount}");
         $this->line("• Audit logs to delete: {$auditCount}");
 
+        // Page-view rows are volume, not evidence — they get their own,
+        // usually much shorter, retention window from CP settings.
+        $viewDays = (int) config('logbook.activity.retention_days', 30);
+        $viewCutoff = now()->subDays(max(1, $viewDays));
+        $viewCount = DB::connection($conn)->table('logbook_audit_logs')
+            ->where('action', 'like', 'statamic.%.viewed')
+            ->where('created_at', '<', $viewCutoff)
+            ->count();
+        $this->line("• Page-view rows to delete (retention {$viewDays}d): {$viewCount}");
+
         if ($dryRun) {
             $this->comment('Dry-run enabled. No deletions performed.');
             return self::SUCCESS;
@@ -51,21 +61,24 @@ class PruneCommand extends Command
         // delete in chunks to avoid huge deletes
         $deletedSystem = $this->deleteInChunks($conn, 'logbook_system_logs', $cutoff);
         $deletedAudit  = $this->deleteInChunks($conn, 'logbook_audit_logs', $cutoff);
+        $deletedViews  = $this->deleteInChunks($conn, 'logbook_audit_logs', $viewCutoff, 'statamic.%.viewed');
 
         $this->info("Done.");
         $this->line("• Deleted system logs: {$deletedSystem}");
         $this->line("• Deleted audit logs: {$deletedAudit}");
+        $this->line("• Deleted page-view rows: {$deletedViews}");
 
         return self::SUCCESS;
     }
 
-    protected function deleteInChunks(string $conn, string $table, $cutoff): int
+    protected function deleteInChunks(string $conn, string $table, $cutoff, ?string $actionLike = null): int
     {
         $deleted = 0;
 
         while (true) {
             $ids = DB::connection($conn)->table($table)
                 ->where('created_at', '<', $cutoff)
+                ->when($actionLike !== null, fn ($q) => $q->where('action', 'like', $actionLike))
                 ->orderBy('id')
                 ->limit(2000)
                 ->pluck('id')
