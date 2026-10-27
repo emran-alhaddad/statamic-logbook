@@ -697,7 +697,8 @@ npm run build
 
 Known tags:
 
-- `v2.3.0` (current) — real log-channel names, working `ignore_channels`, and CP assets that publish themselves
+- `v2.3.1` (current) — documentation only: the README now reads in install order
+- `v2.3.0` — real log-channel names, working `ignore_channels`, and CP assets that publish themselves
 - `v2.2.0` — page views off the Audit Logs page
 - `v2.1.0` — CP-managed settings, page-view tracking
 - `v2.0.2`

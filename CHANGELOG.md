@@ -13,6 +13,54 @@ _Nothing queued for the next release yet._
 
 ---
 
+## [2.3.1] — 2026-10-27
+
+Documentation only. No code changed, so there is nothing to do beyond
+`composer update` whenever it suits you.
+
+### Changed
+
+* **The README reads in the order you need it.** It used to open with roughly
+  150 lines of feature tour and widget screenshots before mentioning how to
+  install anything, and "Required: database credentials" sat about 100 lines
+  *below* the install commands — so the one prerequisite for
+  `php artisan logbook:install` came after the step that needs it. The order is
+  now quick start → compatibility → installation → setup → check it is working
+  → configuration, with the feature tour and the advanced material (ingestion
+  modes, spool scheduling, operational commands) behind it. Upgrade notes moved
+  to the end of **Setup**, so a first-time reader no longer meets them first.
+
+* **New four-step quick start**, with copy-pasteable examples and a table
+  pointing at the right section for whatever you want next. The zero-config
+  path is stated accurately: the CP setup screen prefills from your
+  application's own database connection when no `LOGBOOK_DB_*` is set, so
+  **Connect & install** really is the whole setup.
+
+### Fixed
+
+* **Compatibility claimed Laravel 9–12.** Laravel 13 has been supported since
+  2.0.2 and is now listed.
+* **Undocumented command flags**: `logbook:prune --days=`, and
+  `logbook:flush-spool --type` / `--limit` / `--dry-run`.
+* **`Log` facade calls in examples are fully qualified**, so they work pasted
+  into a namespaced file rather than only at the root namespace.
+* **Test Coverage** listed neither the suite size nor the four test classes
+  added in 2.3.0.
+
+### Added
+
+* **"Which log channel a row belongs to"** — 2.3.0 made channel names real, but
+  `ignore_channels` is only usable if you know what it matches on. The new
+  section shows the names Laravel reports for each kind of write, the
+  `deprecations` default that now genuinely drops rows, and the `Log::build()` /
+  `Log::stack()` limitation.
+
+Env var coverage was cross-checked against `config/logbook.php` in both
+directions: 29 documented, 29 read, no omissions and nothing documented that
+the config never reads.
+
+---
+
 ## [2.3.0] — 2026-10-27
 
 System logs now record the log channel they actually came from, and the CP
