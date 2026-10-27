@@ -181,7 +181,7 @@
                     <div class="lb-field" style="margin-top:10px">
                         <label class="lb-field__label" for="lb-ignore-channels">Ignored channels</label>
                         <input id="lb-ignore-channels" type="text" name="ignore_channels_extra" value="{{ $settings['ignore_channels_extra'] }}" placeholder="e.g. deprecations, queries" class="lb-input lb-field-md">
-                        <p class="lb-field__help">Comma-separated log channels to skip, on top of the defaults.</p>
+                        <p class="lb-field__help">Comma-separated log channels to skip, on top of the defaults. Use the names from <code>config/logging.php</code> — <code>stack</code>, <code>single</code>, <code>deprecations</code>.</p>
                     </div>
                 </div>
             </div>

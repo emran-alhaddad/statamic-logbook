@@ -3,6 +3,7 @@
 namespace EmranAlhaddad\StatamicLogbook\Http\Middleware;
 
 use Closure;
+use EmranAlhaddad\StatamicLogbook\Support\AssetPublisher;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -10,6 +11,10 @@ class LogbookRequestContext
 {
     public function handle($request, Closure $next)
     {
+        // Self-heal the published CP bundles. Runs once per process, on
+        // CP requests only, and no-ops as soon as they are in step.
+        AssetPublisher::ensurePublished();
+
         $requestId = $request->headers->get('X-Request-Id') ?: (string) Str::uuid();
 
         // store it on request so handler can read it

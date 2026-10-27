@@ -23,7 +23,8 @@ All inside the Statamic Control Panel, with filtering, analytics, and CSV export
 - Captures Laravel log events automatically (no manual `logging.php` wiring required)
 - Stores structured records in Logbook DB tables
 - Captures request context (URL, method, IP, user, request id)
-- Supports noise filtering by channel/message fragment
+- Supports noise filtering by channel/message fragment, using the real channel
+  names from `config/logging.php`
 
 ### Audit logs
 
@@ -173,7 +174,31 @@ Then open **Utilities → Logbook** and finish setup there — Logbook creates i
 own tables on the way. If you would rather provision from the command line, see
 [Setup](#setup) below.
 
-The `logbook` tag publishes the config file, the CP stylesheet, and the CP script bundle. Statamic re-runs this automatically on `php artisan statamic:install`, so most teams only need to run it once on initial setup.
+The `logbook` tag publishes the config file, the CP stylesheet, and the CP
+script bundle. Two narrower tags exist for scripted deploys:
+
+| Tag               | Publishes                              |
+| ----------------- | -------------------------------------- |
+| `logbook`         | config + CP stylesheet + CP script     |
+| `logbook-assets`  | CP stylesheet + CP script only         |
+| `logbook-config`  | `config/logbook.php` only              |
+
+You rarely need to run any of them. Logbook keeps
+`public/vendor/statamic-logbook/` in step with the bundles inside the package
+by itself — it copies anything missing or stale on the first Control Panel
+request after an install or upgrade, so the CP is never left unstyled because
+a publish step was skipped. `php artisan logbook:install` publishes them too.
+
+On an immutable or read-only deploy, publish during the build and switch the
+runtime copy off:
+
+```bash
+php artisan vendor:publish --tag=logbook-assets --force
+```
+
+```env
+LOGBOOK_ASSETS_AUTO_PUBLISH=false
+```
 
 ---
 
@@ -278,6 +303,9 @@ defaults; once settings are saved, the CP value wins.
 ### Env-only (no CP equivalent)
 
 ```env
+# Control Panel assets
+LOGBOOK_ASSETS_AUTO_PUBLISH=true
+
 # System log noise filters
 LOGBOOK_SYSTEM_LOGS_BUBBLE=true
 LOGBOOK_SYSTEM_LOGS_IGNORE_CHANNELS=deprecations
@@ -303,10 +331,16 @@ LOGBOOK_SCHEDULER_FLUSH_SPOOL_EVERY_MINUTES=60
 LOGBOOK_SCHEDULER_FLUSH_SPOOL_WITHOUT_OVERLAPPING=true
 ```
 
+- `LOGBOOK_ASSETS_AUTO_PUBLISH` — set `false` to stop Logbook copying its CP
+  bundles into `public/vendor/statamic-logbook/` at runtime. Publish them in
+  your build step instead (`vendor:publish --tag=logbook-assets --force`).
 - `LOGBOOK_SYSTEM_LOGS_BUBBLE` — Monolog bubble behaviour.
 - `LOGBOOK_SYSTEM_LOGS_IGNORE_CHANNELS` / `..._IGNORE_MESSAGES` — comma-separated
   channels and message fragments to drop. Anything you add in the CP's "Ignored
-  channels" box is merged **on top of** these, so both keep applying.
+  channels" box is merged **on top of** these, so both keep applying. Channel
+  names are the ones from your `config/logging.php` (`stack`, `single`,
+  `deprecations`, …); ad-hoc loggers from `Log::build()` / `Log::stack()` carry
+  no channel name of their own and are recorded under `logbook`.
 - `LOGBOOK_AUDIT_USE_CURATED_DEFAULTS` — set `false` to listen only to the
   classes you list in `LOGBOOK_AUDIT_EVENTS`.
 - `LOGBOOK_AUDIT_DISCOVER_EVENTS` — merge every discovered `Statamic\Events\*`
@@ -526,7 +560,7 @@ npm run build
   - look under `storage/app/logbook/spool/failed/` for a file named like `20240101_12.ndjson.20250122093015.failed` — the CP UI reports only the basename on purpose, never the absolute path
   - fix the root cause, requeue the failed file back into `spool/<type>/`, and run `php artisan logbook:flush-spool` again
 - **"Unknown database" on install**: `php artisan logbook:install` auto-creates the database on MySQL/MariaDB if the configured DB user has `CREATE DATABASE`. If your user doesn't, create the DB manually (`CREATE DATABASE logbook_database CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`) and re-run install.
-- **CP widgets render as unstyled gray boxes on Statamic 6**: run `php artisan vendor:publish --tag=logbook --force` to refresh the published stylesheet + script, then clear the browser cache.
+- **CP widgets render as unstyled gray boxes on Statamic 6**: Logbook republishes its bundles by itself on the first CP request, so this should fix itself on reload. If `public/` is read-only (or `LOGBOOK_ASSETS_AUTO_PUBLISH=false`), run `php artisan vendor:publish --tag=logbook-assets --force` to refresh the published stylesheet + script, then clear the browser cache.
 - **Pulse widget filter pills ignore clicks on Statamic 6**: symptom of a stale `statamic-logbook.min.js` publish; re-run the vendor:publish line above.
 - **"Presets ▾" dropdown doesn't appear**: known fix in v2.0.0 (the button now portals its menu into `<body>` to escape the filter toolbar's `backdrop-filter` containing block); upgrade to v2.0.0+.
 
@@ -536,7 +570,13 @@ npm run build
 
 Known tags:
 
-- `v2.0.0` (current) — Statamic 6 support + CP redesign + UX polish pass
+- `v2.3.0` (current) — real log-channel names, working `ignore_channels`, and CP assets that publish themselves
+- `v2.2.0` — page views off the Audit Logs page
+- `v2.1.0` — CP-managed settings, page-view tracking
+- `v2.0.2`
+- `v2.0.1`
+- `v2.0.0` — Statamic 6 support + CP redesign + UX polish pass
+- `v1.5.2`
 - `v1.5.1`
 - `v1.5.0`
 - `v1.4.0`
@@ -548,7 +588,7 @@ Known tags:
 
 Statamic 3 users continue on the `1.x` LTS branch. See `CHANGELOG.md` for the full per-version history.
 
-### Current release (v2.0.0)
+### The v2 line
 
 The v2 release targets three things at once:
 

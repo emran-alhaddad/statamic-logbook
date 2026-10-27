@@ -13,7 +13,9 @@ use EmranAlhaddad\StatamicLogbook\Console\UpgradeCommand;
 use EmranAlhaddad\StatamicLogbook\Console\PruneCommand;
 use EmranAlhaddad\StatamicLogbook\Http\Controllers\LogbookUtilityController;
 use EmranAlhaddad\StatamicLogbook\Http\Middleware\LogbookRequestContext;
+use EmranAlhaddad\StatamicLogbook\Support\AssetPublisher;
 use EmranAlhaddad\StatamicLogbook\SystemLogs\DbSystemLogHandler;
+use EmranAlhaddad\StatamicLogbook\SystemLogs\LogChannelTap;
 use EmranAlhaddad\StatamicLogbook\Widgets\LogbookPulseWidget;
 use EmranAlhaddad\StatamicLogbook\Widgets\LogbookStatsWidget;
 use EmranAlhaddad\StatamicLogbook\Widgets\LogbookTrendsWidget;
@@ -22,6 +24,8 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\ServiceProvider;
+use Monolog\Handler\NullHandler;
 use Monolog\Level;
 use Statamic\Facades\Permission;
 use Statamic\Facades\Utility;
@@ -97,10 +101,12 @@ class LogbookServiceProvider extends AddonServiceProvider
      * widget and utility views visually correct independent of the host
      * CP's purge configuration.
      *
-     * Install consumers run `php artisan vendor:publish --tag=logbook`
-     * (or `--tag=statamic-logbook`) once after install; the
-     * `$publishAfterInstall` default on the parent provider makes Statamic
-     * republish these automatically after `statamic:install`.
+     * Statamic tags these publishes with the addon slug
+     * (`statamic-logbook`); {@see registerPublishTagAliases()} mirrors
+     * them onto the documented `logbook` tag and an asset-only
+     * `logbook-assets` tag, and {@see AssetPublisher} copies anything
+     * missing or stale on the first CP request, so a host that never
+     * runs `statamic:install` still gets a styled CP.
      *
      * @var list<string>
      */
@@ -154,9 +160,7 @@ class LogbookServiceProvider extends AddonServiceProvider
     {
         $this->loadViewsFrom(__DIR__ . '/../resources/views', 'statamic-logbook');
 
-        $this->publishes([
-            __DIR__ . '/../config/logbook.php' => config_path('logbook.php'),
-        ], 'logbook-config');
+        $this->registerPublishTagAliases();
 
         $this->commands([
             InstallCommand::class,
@@ -177,6 +181,56 @@ class LogbookServiceProvider extends AddonServiceProvider
         $this->registerPermissions();
         $this->bootCpUtility();
         $this->applyWidgetRegistryShimIfNeeded();
+    }
+
+    /**
+     * Make `vendor:publish --tag=logbook` do what the docs have always
+     * said it does: publish the config, the CP stylesheet and the CP
+     * script.
+     *
+     * Statamic's {@see AddonServiceProvider::registerStylesheet()} /
+     * {@see AddonServiceProvider::registerScript()} tag their publishes
+     * with `$addon->slug()` — `statamic-logbook` — and its
+     * {@see AddonServiceProvider::bootConfig()} is skipped entirely
+     * because our config file is `config/logbook.php`, not
+     * `config/statamic-logbook.php`. So nothing was ever registered
+     * under `logbook` and the command reported "No publishable
+     * resources for tag [logbook]".
+     *
+     * Three tags come out of this:
+     *   - `logbook`        — config + assets (the documented one-shot).
+     *   - `logbook-assets` — assets only, safe to `--force` on upgrade.
+     *   - `logbook-config` — config only (unchanged).
+     *
+     * The config stays out of the `statamic-logbook` tag on purpose:
+     * Statamic force-publishes that tag after `statamic:install`
+     * (see {@see AddonServiceProvider::bootPublishAfterInstall()}),
+     * which would overwrite an edited `config/logbook.php` on every
+     * `composer update`.
+     *
+     * Runs from bootAddon(), which Statamic invokes after
+     * bootStylesheets()/bootScripts() have registered the asset paths.
+     */
+    protected function registerPublishTagAliases(): void
+    {
+        try {
+            $assets = ServiceProvider::pathsToPublish(
+                static::class,
+                $this->getAddon()->slug()
+            );
+        } catch (\Throwable) {
+            // No resolvable addon record (bare-container tests): the
+            // config tag below still has to be registered.
+            $assets = [];
+        }
+
+        if ($assets !== []) {
+            $this->publishes($assets, ['logbook', 'logbook-assets']);
+        }
+
+        $this->publishes([
+            __DIR__ . '/../config/logbook.php' => config_path('logbook.php'),
+        ], ['logbook', 'logbook-config']);
     }
 
     /**
@@ -283,28 +337,122 @@ class LogbookServiceProvider extends AddonServiceProvider
             $level = Level::Debug;
         }
 
+        $this->tapLogChannels();
+
         Event::listen(MessageLogged::class, function (MessageLogged $event) use ($level, $bubble): void {
-            if ($this->shouldSkipSystemLogEvent($event)) {
+            [$channel, $context] = LogChannelTap::extract(
+                is_array($event->context) ? $event->context : []
+            );
+
+            if ($this->shouldSkipSystemLogEvent($event, $channel)) {
                 return;
             }
 
             $handler = new DbSystemLogHandler(
                 level: $level,
                 bubble: $bubble,
-                channel: $event->channel ?? 'logbook'
+                channel: $channel !== '' ? $channel : 'logbook'
             );
 
             $handler->recordMessage(
                 level: (string) $event->level,
                 message: (string) $event->message,
-                context: is_array($event->context) ? $event->context : []
+                context: $context
             );
         });
     }
 
-    protected function shouldSkipSystemLogEvent(MessageLogged $event): bool
+    /**
+     * Attach {@see LogChannelTap} to every configured log channel.
+     *
+     * `Illuminate\Log\Events\MessageLogged` has no `channel` property —
+     * only `level`, `message` and `context` — so reading
+     * `$event->channel` always produced null, every row was stored with
+     * the fallback channel `logbook`, and
+     * `logbook.system_logs.ignore_channels` could never match anything.
+     * Taps are the lazy, per-channel hook Laravel already resolves on
+     * our behalf; see {@see LogChannelTap} for why context is the only
+     * carrier that reaches the event.
+     *
+     * Channels the host adds after boot, and on-demand loggers from
+     * `Log::build()` / `Log::stack()`, get no tap — those are still
+     * captured, just with the `logbook` fallback channel. Dropping
+     * their records instead would be the worse trade.
+     */
+    protected function tapLogChannels(): void
     {
-        $channel = (string) ($event->channel ?? '');
+        try {
+            $this->materialiseDeprecationsChannel();
+
+            foreach (array_keys((array) config('logging.channels', [])) as $name) {
+                $name = (string) $name;
+
+                // Laravel passes tap arguments as one comma-separated
+                // string, so a comma in a channel name would split it.
+                if ($name === '' || str_contains($name, ',')) {
+                    continue;
+                }
+
+                $key = "logging.channels.{$name}.tap";
+                $taps = (array) config($key, []);
+                $tap = LogChannelTap::class . ':' . $name;
+
+                if (in_array($tap, $taps, true)) {
+                    continue;
+                }
+
+                $taps[] = $tap;
+                config([$key => $taps]);
+            }
+        } catch (\Throwable) {
+            // Channel labelling is a nicety. Capture must keep working.
+        }
+    }
+
+    /**
+     * Copy `logging.deprecations` into `logging.channels.deprecations`
+     * the way Laravel does, but now rather than later.
+     *
+     * {@see \Illuminate\Foundation\Bootstrap\HandleExceptions::handleDeprecationError()}
+     * logs through `Log::channel('deprecations')` and only materialises
+     * that channel's config the first time a deprecation fires — long
+     * after we boot. Without this, the channel carries no tap, its rows
+     * stay unlabelled, and the default
+     * `ignore_channels => ['deprecations']` keeps silently capturing
+     * every deprecation (the reason #3 was filed).
+     *
+     * Laravel's own guard is `if (config('logging.channels.deprecations'))
+     * return;`, so seeding the same value here is a no-op for the
+     * framework.
+     */
+    protected function materialiseDeprecationsChannel(): void
+    {
+        if (config('logging.channels.deprecations')) {
+            return;
+        }
+
+        $options = config('logging.deprecations');
+        $driver = is_array($options) ? ($options['channel'] ?? 'null') : ($options ?? 'null');
+
+        if (! is_string($driver) || $driver === '') {
+            return;
+        }
+
+        // Mirrors HandleExceptions::ensureNullLogDriverIsConfigured().
+        if ($driver === 'null' && ! config('logging.channels.null')) {
+            config(['logging.channels.null' => [
+                'driver' => 'monolog',
+                'handler' => NullHandler::class,
+            ]]);
+        }
+
+        if ($base = config("logging.channels.{$driver}")) {
+            config(['logging.channels.deprecations' => $base]);
+        }
+    }
+
+    protected function shouldSkipSystemLogEvent(MessageLogged $event, string $channel = ''): bool
+    {
         $message = (string) $event->message;
 
         // CP settings can restrict which levels are captured. An absent /

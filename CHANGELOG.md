@@ -13,6 +13,73 @@ _Nothing queued for the next release yet._
 
 ---
 
+## [2.3.0] — 2026-10-27
+
+System logs now record the log channel they actually came from, and the CP
+assets stop needing a publish step. Both were reported by users:
+[#3](https://github.com/emran-alhaddad/statamic-logbook/issues/3) and
+[#4](https://github.com/emran-alhaddad/statamic-logbook/issues/4).
+
+No schema change and nothing to run. See
+**[UPGRADE.md](UPGRADE.md#22x--230)** for the one behaviour change worth
+knowing about: `ignore_channels` starts filtering, defaults included.
+
+### Fixed
+
+* **Log channels are recorded, and `ignore_channels` works** (#3). Every
+  system-log row used to be stored with the channel `logbook`, and
+  `logbook.system_logs.ignore_channels` matched nothing — the capture listener
+  read `$event->channel`, and `Illuminate\Log\Events\MessageLogged` has no
+  such property (it carries only `level`, `message` and `context`). Monolog's
+  own `$record->channel` is no substitute either: Laravel names every Monolog
+  logger `$config['name'] ?? app.env`, so a channel without an explicit `name`
+  reports `production`.
+
+  Logbook now attaches a lazy Laravel log *tap* to each channel in
+  `config/logging.php`, which labels that channel's records with its real name
+  on the way through. A `stack` channel reports `stack` rather than one of its
+  sub-channels, and the marker is stripped from the Monolog record before any
+  handler runs, so nothing new appears in your own `laravel.log`.
+
+  The `deprecations` channel is covered too. Laravel only materialises its
+  config the first time a deprecation fires — after addon boot — so Logbook
+  seeds it the way the framework does, and the shipped
+  `ignore_channels => ['deprecations']` default finally drops deprecation rows
+  as documented, `NullHandler` or not.
+
+  Channels the host registers after boot, and on-demand loggers from
+  `Log::build()` / `Log::stack()`, carry no name Laravel can report; their
+  records are still captured, under the `logbook` fallback. Dropping them would
+  be the worse trade.
+
+* **`vendor:publish --tag=logbook` publishes something** (#4). The README has
+  always documented that tag, but Statamic registers addon assets under the
+  addon slug (`statamic-logbook`) and skips its own `bootConfig()` for a config
+  file that is not named after the slug — so the documented command reported
+  "No publishable resources for tag [logbook]". Three tags are now registered:
+  `logbook` (config + both bundles), `logbook-assets` (bundles only, safe to
+  `--force` on upgrade) and `logbook-config` (config only). The config stays out
+  of the `statamic-logbook` tag on purpose: Statamic force-publishes that tag
+  after `statamic:install`, which would overwrite an edited `config/logbook.php`
+  on every `composer update`.
+
+### Added
+
+* **Self-publishing CP assets** (#4). Statamic only force-publishes addon assets
+  from `statamic:install`, which plenty of deploys never run, and a
+  `composer update` that ships a newer bundle leaves the old published copy in
+  place — both of which surface as an unstyled Control Panel. Logbook now
+  copies anything missing or stale into `public/vendor/statamic-logbook/` on the
+  first CP request of each process, then no-ops. It fails soft and silently on a
+  read-only `public/`, and `php artisan logbook:install` publishes the bundles
+  as well.
+
+* **`LOGBOOK_ASSETS_AUTO_PUBLISH`** (`logbook.assets.auto_publish`, default
+  `true`) — set `false` on immutable deploys and publish during the build with
+  `vendor:publish --tag=logbook-assets --force`.
+
+---
+
 ## [2.2.0] — 2026-07-29
 
 Page views no longer appear on the Audit Logs page.

@@ -7,6 +7,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use EmranAlhaddad\StatamicLogbook\Support\AssetPublisher;
 use EmranAlhaddad\StatamicLogbook\Support\DbConnectionResolver;
 
 class InstallCommand extends Command
@@ -28,6 +29,10 @@ class InstallCommand extends Command
         $this->createAuditLogsTable($connection);
         $this->createUserPrefsTable($connection);
         $this->createSettingsTable($connection);
+
+        // 3) Publish the CP bundles so the Control Panel renders styled
+        //    even on hosts that never run `statamic:install`.
+        AssetPublisher::ensurePublished(force: true);
 
         $this->info('✅ Statamic Logbook installation completed successfully.');
         return self::SUCCESS;

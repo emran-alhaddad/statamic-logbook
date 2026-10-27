@@ -46,11 +46,34 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------
+    | Control Panel assets
+    |--------------------------------------------------------------------
+    |
+    | Logbook ships its own CP stylesheet and script bundle. Statamic
+    | only force-publishes them from `statamic:install`, so by default
+    | Logbook also copies anything missing or stale into
+    | `public/vendor/statamic-logbook/` on the first CP request of each
+    | process. Turn this off on immutable deploys and publish during the
+    | build instead:
+    |
+    |     php artisan vendor:publish --tag=logbook-assets --force
+    |
+    */
+    'assets' => [
+        'auto_publish' => (bool) env('LOGBOOK_ASSETS_AUTO_PUBLISH', true),
+    ],
+
     'system_logs' => [
         'enabled' => (bool) env('LOGBOOK_SYSTEM_LOGS_ENABLED', true),
         'level' => env('LOGBOOK_SYSTEM_LOGS_LEVEL', 'debug'),
         'bubble' => (bool) env('LOGBOOK_SYSTEM_LOGS_BUBBLE', true),
-        // Ignore noisy framework channels/messages by default.
+        // Ignore noisy framework channels/messages by default. Channel
+        // names are the ones from `config/logging.php` — `deprecations`,
+        // `stack`, `single`, and so on. Ad-hoc loggers built with
+        // Log::build() / Log::stack() report as `logbook`, since Laravel
+        // gives them no channel name to read.
         'ignore_channels' => array_values(array_filter(array_map('trim', explode(',', (string) env(
             'LOGBOOK_SYSTEM_LOGS_IGNORE_CHANNELS',
             'deprecations'

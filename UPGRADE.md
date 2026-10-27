@@ -1,5 +1,59 @@
 # Upgrading Statamic Logbook
 
+## 2.2.x → 2.3.0
+
+No schema change, no settings change, nothing to run. Two behaviours change,
+and both are opt-out.
+
+### `ignore_channels` starts working
+
+Until now every system-log row was stored with the channel `logbook`, because
+`Illuminate\Log\Events\MessageLogged` carries no channel and the addon read a
+property that does not exist. `logbook.system_logs.ignore_channels` therefore
+matched nothing.
+
+Rows now carry the real channel name from your `config/logging.php` — `stack`,
+`single`, `deprecations`, and so on — and the filter applies. **The shipped
+default is `ignore_channels => ['deprecations']`**, so if your app routes PHP
+deprecations through `Log::channel('deprecations')`, those rows stop being
+recorded after this upgrade. That was always the documented intent. To keep
+recording them:
+
+```env
+LOGBOOK_SYSTEM_LOGS_IGNORE_CHANNELS=
+```
+
+Existing rows are untouched and keep their `logbook` channel. Nothing is
+deleted, and nothing stops being captured other than what you have explicitly
+listed in `ignore_channels`.
+
+Ad-hoc loggers built with `Log::build()` or `Log::stack()` have no channel name
+for Laravel to report, so they are still recorded under `logbook`.
+
+### CP assets publish themselves
+
+Logbook now copies its stylesheet and script into
+`public/vendor/statamic-logbook/` on the first Control Panel request whenever
+the published copy is missing or older than the one in the package. That ends
+the "CP renders as unstyled gray boxes" class of problem after
+`composer update`.
+
+On a read-only or immutable deploy, publish in your build step and switch the
+runtime copy off:
+
+```bash
+php artisan vendor:publish --tag=logbook-assets --force
+```
+
+```env
+LOGBOOK_ASSETS_AUTO_PUBLISH=false
+```
+
+`php artisan vendor:publish --tag=logbook` also works now; before 2.3.0 it
+reported "No publishable resources for tag [logbook]".
+
+---
+
 ## 2.0.x → 2.1.0
 
 **Your data is safe.** Neither log table changed shape in 2.1.0, so every row
@@ -127,13 +181,17 @@ screen will re-import from `.env`, which produces the same result.)
 2.1.0 ships a new stylesheet and script bundle:
 
 ```bash
-php artisan vendor:publish --tag=logbook --force
+php artisan vendor:publish --tag=logbook-assets --force
 php artisan cache:clear
 ```
 
 The `cache:clear` matters: Statamic caches the addon's asset URL (including its
 cache-busting version) indefinitely, so without it browsers keep serving the
 old bundle and the new screens look unstyled.
+
+From 2.3.0 on, the publish line is optional — Logbook notices a stale published
+bundle on the first CP request and replaces it. `cache:clear` is still worth
+running so the asset URL picks up the new version.
 
 ---
 
